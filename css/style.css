@@ -202,3 +202,10 @@ html, body, button { touch-action: manipulation; }
 .hole-pick.cur { background: var(--green); color: #fff; border-color: #14532d; box-shadow: 0 0 0 3px rgba(26,127,55,.35); }
 .hole-pick.cur .hp-no { color: #fff; }
 .hole-pick.cur .hp-sub { color: #e6f4ea; font-weight: bold; }
+
+/* v0.4.6: ホール名ボタンにコース名／攻略メモはホール選択モーダル内へ */
+.hole-title-btn .hole-course { font-size: 11px; color: #57606a; width: 100%; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal-box { max-height: 88vh; overflow-y: auto; }
+.strategy-box { text-align: left; background: #fff8e1; border: 1px solid #e3c878; border-radius: 8px; padding: 8px 10px; margin-top: 10px; }
+.strategy-box h4 { margin: 0 0 4px; font-size: 13px; }
+.strategy-box p { margin: 0; font-size: 13px; white-space: pre-wrap; }

@@ -16,7 +16,24 @@ export async function getMembers() {
 }
 
 export async function getPlayedCourses() {
-  return (await getMeta('playedCourses', [])) || [];
+  const played = (await getMeta('playedCourses', [])) || [];
+  const courses = (await getMeta('courses', [])) || [];
+  if (!courses.length) return played;
+  // 元データ（Rounds）で名前とIDが食い違う行がある（例：レイクランドのIDが鹿沼72のもの）。
+  // 名前がマスタにあれば名前を正としてIDを引き直し、同IDは合算する。
+  const byName = new Map(courses.map(c => [c.name, String(c.course_id)]));
+  const merged = new Map();
+  for (const p of played) {
+    const id = byName.get(p.name) || String(p.course_id);
+    if (merged.has(id)) {
+      const m = merged.get(id);
+      m.count += p.count || 0;
+      if (String(p.last || '') > String(m.last || '')) m.last = p.last;
+    } else {
+      merged.set(id, { ...p, course_id: id });
+    }
+  }
+  return [...merged.values()];
 }
 
 export async function allCourses() {

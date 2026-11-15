@@ -273,6 +273,7 @@ async function renderCurrentSetup(root, s) {
     <input type="search" id="course-q" placeholder="コースを変更する場合は名前・かなで検索">
     <select id="played-select">
       <option value="">プレー済みコースから選ぶ（回数が多い順）</option>
+      ${played.some(p => String(p.course_id) === String(s.course_id)) ? '' : `<option value="${esc(s.course_id)}">${esc(s.course_name)}（選択中）</option>`}
       ${[...played].sort((a, b) => (b.count - a.count) || String(b.last || '').localeCompare(String(a.last || ''))).map(p => `<option value="${esc(p.course_id)}">${esc(p.name)}（${p.count}回${p.last ? `・${esc(p.last)}` : ''}）</option>`).join('')}
     </select>
     <div id="course-results"></div>

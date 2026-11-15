@@ -75,12 +75,12 @@ export function renderHole(root) {
   <div class="hole-head">
     <button type="button" id="hole-prev" ${i === 0 ? 'disabled' : ''}>◀ 前</button>
     <button type="button" class="hole-title-btn" id="hole-title">
+      <span class="hole-course">${esc(s.course_name)}</span>
       <span class="hole-name">${esc(subName)} ${i % 9 + 1}H <span class="hole-no">（${s.currentHole}H）</span> <span class="hole-pick-mark">▾</span></span>
       <span class="hole-meta">Par ${s.pars[i]} ・ ${s.yards[i]}y ・ Hdcp ${s.hdcp[i]}</span>
     </button>
     <button type="button" id="hole-next" ${i === 17 ? 'disabled' : ''}>次 ▶</button>
   </div>
-  <button type="button" id="open-strategy" class="strategy-btn">📖 攻略メモ${strategy ? '' : '（このホールは未登録）'}</button>
   <button type="button" id="open-score" class="totals-bar btn-bar">OUT ${t.out_score}（${t.out_putts}） / IN ${t.in_score}（${t.in_putts}） / 合計 ${t.score} ・ パット ${t.putts}</button>
   ${tomoHole ? `<button type="button" id="open-tomo" class="tomo-bar btn-bar">A ${n2(names[tomoHole.teamA[0]])}・${n2(names[tomoHole.teamA[1]])} / B ${n2(names[tomoHole.teamB[0]])}・${n2(names[tomoHole.teamB[1]])} ｜ ${esc(tomoShort(tomo, i))} ｜ 本人 ${tomo.totals[0] > 0 ? '+' : ''}${tomo.totals[0]}pt</button>` : ''}
 
@@ -130,7 +130,6 @@ export function renderHole(root) {
   </div>
   ${modalOpen === 'score' ? buildScoreModal(s) : ''}
   ${modalOpen === 'tomo' && tomo ? buildTomoModal(s, tomo) : ''}
-  ${modalOpen === 'strategy' ? buildStrategyModal(s, i, strategy) : ''}
   ${modalOpen === 'holes' ? buildHolePickerModal(s) : ''}`;
 
   root.innerHTML = html;
@@ -218,6 +217,8 @@ function buildTomoModal(s, tomo) {
 }
 
 function buildHolePickerModal(s) {
+  const ci = s.currentHole - 1;
+  const st = s.strategies[ci];
   const btn = h => {
     const played = (s.scores[h] || 0) > 0;
     const cur = s.currentHole === h + 1;
@@ -228,14 +229,7 @@ function buildHolePickerModal(s) {
     <h3>ホール選択（移動だけでは確定しません）</h3>
     <p class="hint">緑＝入力済み ／ 濃緑＝現在のホール ／ グレー＝未入力</p>
     <div class="hole-pick-grid">${cells}</div>
-    <button type="button" class="primary modal-close">閉じる</button>
-  </div></div>`;
-}
-
-function buildStrategyModal(s, i, strategy) {
-  return `<div class="modal-overlay" id="modal-overlay"><div class="modal-box">
-    <h3>${i + 1}H 攻略メモ（Par ${s.pars[i]} ・ ${s.yards[i]}y）</h3>
-    ${strategy ? `<p class="strategy-text">${esc(strategy)}</p>` : '<p class="hint">このホールの攻略メモはコースマスタに登録されていません。</p>'}
+    ${st ? `<div class="strategy-box"><h4>📖 ${s.currentHole}H 攻略メモ</h4><p>${esc(st)}</p></div>` : ''}
     <button type="button" class="primary modal-close">閉じる</button>
   </div></div>`;
 }
@@ -362,10 +356,6 @@ function bindHoleEvents(root) {
       renderHole(root);
     });
   });
-
-  // 攻略メモボタン：モーダルで全文表示
-  const strategyBtn = root.querySelector('#open-strategy');
-  if (strategyBtn) strategyBtn.addEventListener('click', () => { modalOpen = 'strategy'; renderHole(root); });
 
   // 詳細モーダル（下部のボタンから開く。見切れる位置でよい）
   const openScore = root.querySelector('#open-score');
