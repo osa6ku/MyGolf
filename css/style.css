@@ -1,6 +1,6 @@
 :root { --green: #1a7f37; --border: #d0d7de; }
 * { box-sizing: border-box; }
-body { margin: 0; font-family: -apple-system, "Hiragino Sans", sans-serif; background: #f6f8fa; color: #1f2328; padding-bottom: 64px; }
+body { margin: 0; font-family: -apple-system, "Hiragino Sans", sans-serif; background: #f6f8fa; color: #1f2328; padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
 header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--green); color: #fff; position: sticky; top: 0; z-index: 10; }
 header h1 { font-size: 18px; margin: 0; }
 .save-status { font-size: 12px; opacity: .9; }
@@ -22,7 +22,7 @@ input[type="text"], input[type="search"], input[type="url"], input[type="date"],
 .course-item { display: block; width: 100%; text-align: left; margin: 4px 0; }
 .selected-course { font-weight: bold; }
 .tabbar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; background: #fff; border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); }
-.tabbar button { flex: 1; border: none; border-radius: 0; padding: 12px 0; background: #fff; }
+.tabbar button { flex: 1; border: none; border-radius: 0; padding: 12px 0; background: #fff; font-size: 13px; white-space: nowrap; min-width: 0; }
 .hole-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .hole-title { text-align: center; }
 .hole-name { font-size: 18px; font-weight: bold; }
