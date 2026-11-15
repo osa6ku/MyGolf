@@ -52,7 +52,7 @@ async function call(action, payload, method = 'POST', retries = 3) {
 
 export async function fetchMaster() {
   const data = await call('getMaster', null, 'GET', 2);
-  return data.courses || [];
+  return { courses: data.courses || [], members: data.members || [] };
 }
 
 export async function saveDraft(state) {

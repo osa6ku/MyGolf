@@ -2,7 +2,7 @@
 import { openDb, getMeta } from './db.js';
 import { getState, setState, loadCurrent, saveNow, totals, toRoundRecord, clearCurrent, summarize } from './state.js';
 import { gasUrl, setGasUrl, pendingList, flushPending, queuePending, saveRoundNow } from './sync.js';
-import { syncMaster, masterCount } from './master.js';
+import { syncMaster, masterCount, getMembers } from './master.js';
 import { renderSetup, setSetupStartHandler } from './ui-setup.js';
 import { renderHole, setHoleNavHandler } from './ui-hole.js';
 import { renderRestore, setRestoreHandler } from './ui-restore.js';
@@ -123,7 +123,7 @@ async function renderSettings() {
     </div>
     <div class="card">
       <h3>コースマスタ</h3>
-      <p>現在 ${await masterCount()} 件</p>
+      <p>コース現在 ${await masterCount()} 件 / メンバー ${(await getMembers()).length} 名</p>
       <button type="button" id="master-sync">マスタ同期</button>
       <p id="master-msg"></p>
     </div>
@@ -137,7 +137,7 @@ async function renderSettings() {
     msg.textContent = '同期中…';
     try {
       const n = await syncMaster();
-      msg.textContent = `${n} 件を同期しました。`;
+      msg.textContent = `コース ${n.courses} 件 / メンバー ${n.members} 名を同期しました。`;
     } catch (err) {
       msg.textContent = `失敗：${err.message || err}`;
     }

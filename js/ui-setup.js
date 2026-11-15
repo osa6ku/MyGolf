@@ -1,5 +1,5 @@
 // ラウンド設定：コース検索・選択、条件、同伴者、ゲーム設定（打順シャッフル/手動）、端末間復元オプション
-import { searchCourses, masterCount } from './master.js';
+import { searchCourses, masterCount, getMembers } from './master.js';
 import { newRoundState, setState, saveNow, summarize } from './state.js';
 import { fetchDraft } from './sync.js';
 import { newGame, shuffleOrder } from './game.js';
@@ -31,9 +31,7 @@ export async function renderSetup(root) {
   </section>
   <section class="card">
     <h3>同伴者（最大3名）</h3>
-    <input type="text" class="partner-input" placeholder="同伴者1">
-    <input type="text" class="partner-input" placeholder="同伴者2">
-    <input type="text" class="partner-input" placeholder="同伴者3">
+    <div id="partner-slots"></div>
     <label class="check"><input type="checkbox" id="f-game"> トモダチゲームを使う</label>
     <div id="game-box" style="display:none">
       <div class="row"><span>打順</span><button type="button" id="order-shuffle">シャッフル</button></div>
@@ -72,6 +70,30 @@ export async function renderSetup(root) {
     renderOrder(root, shuffled);
   });
 
+  // 同伴者スロット（メンバー一覧から選択。新規はその場で入力）
+  const members = await getMembers();
+  const slotsRoot = root.querySelector('#partner-slots');
+  slotsRoot.innerHTML = [0, 1, 2].map(k => `
+    <div class="row">
+      <select class="partner-select" data-slot="${k}">
+        <option value="">同伴者${k + 1}（なし）</option>
+        ${members.map(m => `<option value="${esc(m.name)}">${esc(m.name)}${m.count ? `（${m.count}回）` : ''}</option>`).join('')}
+        <option value="+新規">＋新規入力</option>
+      </select>
+      <input type="text" class="partner-new" data-slot="${k}" placeholder="名前を入力" style="display:none">
+    </div>`).join('');
+  slotsRoot.querySelectorAll('.partner-select').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const input = slotsRoot.querySelector(`.partner-new[data-slot="${sel.dataset.slot}"]`);
+      input.style.display = sel.value === '+新規' ? '' : 'none';
+      if (sel.value === '+新規') input.focus();
+      renderOrder(root);
+    });
+  });
+  slotsRoot.querySelectorAll('.partner-new').forEach(inp => {
+    inp.addEventListener('input', () => renderOrder(root));
+  });
+
   const restoreCheck = root.querySelector('#f-restore');
   restoreCheck.addEventListener('change', async () => {
     const box = root.querySelector('#restore-box');
@@ -106,7 +128,7 @@ export async function renderSetup(root) {
       const tee = sub.tees.find(t => t.tee_name === teeName && t.green_name === greenName) || sub.tees[0];
       return { name: sub.name, pars: sub.pars, handicaps: sub.handicaps, yards: tee.distance_per_hole };
     };
-    const partners = [...root.querySelectorAll('.partner-input')].map(x => x.value.trim()).filter(Boolean);
+    const partners = collectPartners(root);
     let game = null;
     if (gameCheck.checked) {
       const order = JSON.parse(root.querySelector('#order-list').dataset.order || '[]');
@@ -128,9 +150,21 @@ export async function renderSetup(root) {
   });
 }
 
+export function collectPartners(root) {
+  const names = [];
+  root.querySelectorAll('.partner-select').forEach(sel => {
+    if (sel.value === '+新規') {
+      const v = root.querySelector(`.partner-new[data-slot="${sel.dataset.slot}"]`).value.trim();
+      if (v) names.push(v);
+    } else if (sel.value) {
+      names.push(sel.value);
+    }
+  });
+  return names;
+}
+
 function playerNames(root) {
-  const partners = [...root.querySelectorAll('.partner-input')].map(x => x.value.trim()).filter(Boolean);
-  return ['桑木修', ...partners];
+  return ['桑木修', ...collectPartners(root)];
 }
 
 function renderOrder(root, order) {

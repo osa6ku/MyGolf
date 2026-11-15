@@ -3,7 +3,7 @@
  * 本番DBには接続しない。認証なし・AccessLogなし（要件 U-10）。URLの秘匿のみで運用。
  *
  * Actions:
- *   GET  ?action=getMaster  コースマスタ全件
+ *   GET  ?action=getMaster  コースマスタ全件＋メンバー一覧（Rounds の partners_json から集計）
  *   GET  ?action=getDraft   最新の下書き（シート「下書き」1行保持）
  *   POST {action:"saveDraft", round_id, payload}   下書き保存
  *   POST {action:"saveRound", round:{...}}         確定保存（Rounds へ降順挿入、round_id重複チェック付き）
@@ -65,7 +65,7 @@ function getMaster_() {
       sub_courses: subs
     });
   }
-  return { ok: true, count: courses.length, courses: courses };
+  return { ok: true, count: courses.length, courses: courses, members: getMembers_() };
 }
 
 /** 下書きシート（なければ作る）。 */
@@ -164,4 +164,71 @@ function saveRound_(body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/** MyScore 内蔵リスト（MemberMasterシートが存在しないため、履歴に無い名前の受け皿）。本人は除く。 */
+var FALLBACK_MEMBERS = [
+  '松村和也', '熊谷浩', '古屋典之', '角陸伸彦', '西山明宏', '岡田剛', '土井武之',
+  '平居孝博', '蓑手強志', '石原一', '太田あいり', '水木雅之', '山田良和', '堀覚', '上原',
+  '稲田壮', '山本', '北野', '浦上真乙プロ', 'ハヤシ', 'ジュン', '石原千夏', '古屋綾子',
+  '佐藤めぐみ', '加藤', '沢田', '大西剛', '綾部豊', '中山航', '竹沢磊', '近藤',
+  '米村', '江口', '成瀬', '伊藤', '谷口', '浦野', '北浦', '蓑手美子'
+];
+
+/** 名前の正規化（MyScore の表記ゆれ吸収ルールを継承）。 */
+function cleanMemberName_(name) {
+  var clean = String(name || '').trim().replace(/\s+/g, '');
+  if (clean.endsWith('さん') && clean.length > 2) clean = clean.slice(0, -2);
+  if (clean.endsWith('様') && clean.length > 1) clean = clean.slice(0, -1);
+  if (clean === '角陸信彦') clean = '角陸伸彦';
+  if (clean === '西山明彦') clean = '西山明宏';
+  if (clean === '稲田荘' || clean === '稲田さな') clean = '稲田壮';
+  if (clean === '水木') clean = '水木雅之';
+  if (clean === '堀') clean = '堀覚';
+  if (clean === '太田') clean = '太田あいり';
+  return clean;
+}
+
+/**
+ * メンバー一覧：Rounds の partners_json から実績（回数・最終日）を集計し、
+ * 内蔵リストで補完。本人は除外。並びは最終日 desc → 回数 desc → 内蔵リスト順。
+ */
+function getMembers_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(SHEET_ROUNDS);
+  var stats = {}; // name -> {name, count, last}
+  if (sh && sh.getLastRow() > 1) {
+    var values = sh.getRange(2, 1, sh.getLastRow() - 1, 16).getValues();
+    for (var r = 0; r < values.length; r++) {
+      var dateVal = values[r][1];
+      var dateStr = dateVal instanceof Date
+        ? Utilities.formatDate(dateVal, 'Asia/Tokyo', 'yyyy-MM-dd')
+        : String(dateVal || '');
+      var partners = [];
+      try { partners = JSON.parse(values[r][15] || '[]'); } catch (e) { partners = []; }
+      if (!Array.isArray(partners)) continue;
+      var seenInRound = {};
+      partners.forEach(function (p) {
+        var name = cleanMemberName_(p && p.name);
+        if (!name || name === '桑木修' || seenInRound[name]) return;
+        seenInRound[name] = true;
+        if (!stats[name]) stats[name] = { name: name, count: 0, last: '' };
+        stats[name].count++;
+        if (dateStr > stats[name].last) stats[name].last = dateStr;
+      });
+    }
+  }
+  var order = {};
+  FALLBACK_MEMBERS.forEach(function (n, i) { order[n] = i; });
+  Object.keys(stats).forEach(function (n) {
+    if (!(n in order)) order[n] = FALLBACK_MEMBERS.length + Object.keys(order).length;
+  });
+  FALLBACK_MEMBERS.forEach(function (n) {
+    if (!stats[n]) stats[n] = { name: n, count: 0, last: '' };
+  });
+  return Object.keys(stats).map(function (n) { return stats[n]; }).sort(function (a, b) {
+    if (a.last !== b.last) return a.last < b.last ? 1 : -1;
+    if (a.count !== b.count) return b.count - a.count;
+    return order[a.name] - order[b.name];
+  });
 }
