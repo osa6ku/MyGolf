@@ -1,7 +1,7 @@
 // MyGolf Service Worker
 // 新バージョンは自動で有効化しない（ラウンド進行中の差し替え防止）。
 // 有効化は次回起動時（waiting のまま放置され、タブが閉じれば自然に切り替わる）。
-const CACHE = 'mygolf-v1';
+const CACHE = 'mygolf-v2';
 const SHELL = [
   './',
   './index.html',
@@ -42,6 +42,12 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin) return;
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    caches.match(event.request).then(hit => hit || fetch(event.request))
+    fetch(event.request)
+      .then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(cache => cache.put(event.request, copy));
+        return res;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
