@@ -132,12 +132,17 @@ export async function renderSetup(root) {
     if (!selectedCourse) return;
     const halfA = root.querySelector('#half-a').value;
     const halfB = root.querySelector('#half-b').value;
-    const teeSel = root.querySelector('#tee-sel');
-    const [teeName, greenName] = (teeSel.value || '').split('|');
+    const teeName = root.querySelector('#tee-sel').value;
+    const greenName = root.querySelector('#green-sel').value;
     const subs = selectedCourse.sub_courses;
     const pick = name => {
       const sub = subs.find(x => x.name === name);
-      const tee = (sub.tees || []).find(t => t.tee_name === teeName && t.green_name === greenName) || (sub.tees || [])[0] || { distance_per_hole: sub.pars.map(() => 0) };
+      const tees = sub.tees || [];
+      const tee = tees.find(t => t.tee_name === teeName && t.green_name === greenName)
+        || tees.find(t => t.tee_name === teeName)
+        || tees.find(t => t.green_name === greenName)
+        || tees[0]
+        || { distance_per_hole: sub.pars.map(() => 0) };
       return { name: sub.name, pars: sub.pars, handicaps: sub.handicaps, yards: tee.distance_per_hole };
     };
     const partners = collectPartners(root);
@@ -221,15 +226,19 @@ async function selectCourse(root, courseId) {
   selectedCourse = all.find(c => String(c.course_id) === String(courseId));
   if (!selectedCourse) return;
   const subs = selectedCourse.sub_courses || [];
-  const teeKeys = [];
+  const teeNames = [];
+  const greenNames = [];
+  let regularTee = '';
   subs.forEach(sub => (sub.tees || []).forEach(t => {
-    const key = `${t.tee_name}|${t.green_name}`;
-    if (!teeKeys.includes(key)) teeKeys.push(key);
+    if (!teeNames.includes(t.tee_name)) teeNames.push(t.tee_name);
+    if (!greenNames.includes(t.green_name)) greenNames.push(t.green_name);
+    if (t.is_regular_tee && !regularTee) regularTee = t.tee_name;
   }));
   root.querySelector('#course-selected').innerHTML = `
     <p class="selected-course">選択中：${esc(selectedCourse.name)}</p>
     <div class="row"><label>前半</label><select id="half-a">${subs.map(s => `<option>${esc(s.name)}</option>`).join('')}</select></div>
     <div class="row"><label>後半</label><select id="half-b">${subs.map((s, ix) => `<option ${ix === 1 ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>
-    <div class="row"><label>ティー</label><select id="tee-sel">${teeKeys.map(k => `<option value="${esc(k)}">${esc(k.replace('|', ' / '))}</option>`).join('')}</select></div>`;
+    <div class="row"><label>ティー</label><select id="tee-sel">${teeNames.map(n => `<option ${n === regularTee ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+    <div class="row"><label>グリーン</label><select id="green-sel">${greenNames.map(n => `<option>${esc(n)}</option>`).join('')}</select></div>`;
   root.querySelector('#start-round').disabled = false;
 }
