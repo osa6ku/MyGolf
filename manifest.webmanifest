@@ -1,7 +1,7 @@
 {
   "name": "MyGolf",
   "short_name": "MyGolf",
-  "description": "ゴルフスコア記録アプリ（MyScore 比較検証用）",
+  "description": "ゴルフスコア記録アプリ",
   "lang": "ja",
   "start_url": "./index.html",
   "scope": "./",

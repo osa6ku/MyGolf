@@ -129,7 +129,7 @@ async function renderSettings() {
       <h3>GAS URL</h3>
       <input type="url" id="gas-url" value="${esc(url)}" placeholder="https://script.google.com/macros/s/.../exec">
       <button type="button" id="gas-save">保存</button>
-      <p class="hint">検証用コピーに紐づく GAS のウェブアプリ URL。未設定でもローカル保存だけで使えます。</p>
+      <p class="hint">MyGolf_DB に紐づく GAS のウェブアプリ URL。未設定でもローカル保存だけで使えます。</p>
     </div>
     <div class="card">
       <h3>コースマスタ</h3>
