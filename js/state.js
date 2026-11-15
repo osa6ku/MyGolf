@@ -10,9 +10,10 @@ const empty18 = (fill) => Array.from({ length: 18 }, () => fill);
 
 export function newRoundState(setup) {
   // setup: {date, course_id, course_name, halves:[subA, subB], tee_name, green_name, weather, wind, partners:[name...], game}
-  const pars = [], yards = [], hdcp = [];
+  const pars = [], yards = [], hdcp = [], strategies = [];
   setup.halves.forEach(sub => {
     pars.push(...sub.pars); yards.push(...sub.yards); hdcp.push(...sub.handicaps);
+    strategies.push(...(sub.strategies || sub.pars.map(() => '')));
   });
   const yyyymmdd = setup.date.replace(/-/g, '');
   return {
@@ -26,7 +27,7 @@ export function newRoundState(setup) {
     weather: setup.weather || '晴れ',
     wind: setup.wind || '',
     currentHole: 1, // 1..18（通し番号）
-    pars, yards, hdcp,
+    pars, yards, hdcp, strategies,
     scores: empty18(0),
     putts: empty18(0),
     fw: empty18(null),

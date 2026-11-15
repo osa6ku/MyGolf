@@ -143,7 +143,7 @@ export async function renderSetup(root) {
         || tees.find(t => t.green_name === greenName)
         || tees[0]
         || { distance_per_hole: sub.pars.map(() => 0) };
-      return { name: sub.name, pars: sub.pars, handicaps: sub.handicaps, yards: tee.distance_per_hole };
+      return { name: sub.name, pars: sub.pars, handicaps: sub.handicaps, yards: tee.distance_per_hole, strategies: sub.hole_strategies || [] };
     };
     const partners = collectPartners(root);
     const order = JSON.parse(root.querySelector('#order-list').dataset.order || '[]');

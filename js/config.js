@@ -1,6 +1,6 @@
 // MyGolf 設定・定数
 export const APP_NAME = 'MyGolf';
-export const APP_VERSION = '0.3.2';
+export const APP_VERSION = '0.3.3';
 export const DB_NAME = 'mygolf';
 export const DB_VERSION = 1;
 

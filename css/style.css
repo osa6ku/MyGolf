@@ -78,3 +78,29 @@ input[type="text"], input[type="search"], input[type="url"], input[type="date"],
 .order-list li { margin: 4px 0; }
 .order-item { width: 100%; text-align: left; }
 .order-item.picked { background: #fff8c5; border-color: #d4a72c; }
+
+/* v0.3.3: さらなる圧縮（同伴者を1画面に収める）＋攻略メモ上部＋詳細モーダル */
+.hole-head { margin-bottom: 6px; }
+.hole-head button { padding: 6px 10px; }
+.hole-name { font-size: 17px; }
+.totals-bar { padding: 5px; font-size: 13px; margin-bottom: 8px; }
+.tomo-bar { padding: 5px 8px; font-size: 12px; line-height: 1.35; margin-bottom: 8px; }
+.strategy { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; line-height: 1.35; color: #3a4a3a; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.strategy.open { display: block; }
+.card.compact { padding: 9px; }
+.score-line { margin-bottom: 4px; }
+.shots-list { max-height: 42px; font-size: 13px; margin-bottom: 6px; }
+.club-grid { grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 5px; }
+.club-btn { padding: 7px 0; font-size: 13px; }
+.res-grid { gap: 3px; }
+.res-btn { padding: 6px 0; font-size: 13px; }
+.mini-btn { width: 30px; height: 30px; font-size: 15px; }
+.sub-actions { display: flex; gap: 8px; margin-top: 8px; }
+.sub-actions button { flex: 1; font-size: 13px; padding: 7px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 12px; }
+.modal-box { background: #fff; border-radius: 12px; padding: 14px; width: 100%; max-width: 560px; max-height: 82vh; overflow-y: auto; }
+.modal-box h3 { margin: 0 0 8px; font-size: 15px; }
+.modal-player { margin-bottom: 10px; }
+.modal-player-head { font-weight: bold; font-size: 14px; margin: 6px 0 2px; }
+.modal-holes { font-size: 13px; line-height: 1.55; font-variant-numeric: tabular-nums; }
+.modal-close { width: 100%; margin-top: 8px; }

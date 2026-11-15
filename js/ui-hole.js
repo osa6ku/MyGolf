@@ -17,6 +17,8 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 
 let pendingClub = '';
 let pendingHole = 0; // pendingClub が属するホール（ホールが変わったらリセット）
+let modalOpen = null; // 'score' | 'tomo' | null（詳細モーダルは下部のボタンから開く）
+let strategyOpen = false;
 
 function miniStepper(label, value, kind, extra = '') {
   return `<span class="mini-stepper">
@@ -42,7 +44,7 @@ export function renderHole(root) {
   const s = getState();
   if (!s) { root.innerHTML = '<p>進行中のラウンドがありません。</p>'; return; }
   const i = s.currentHole - 1;
-  if (pendingHole !== s.currentHole) { pendingClub = ''; pendingHole = s.currentHole; }
+  if (pendingHole !== s.currentHole) { pendingClub = ''; pendingHole = s.currentHole; strategyOpen = false; }
   const t = totals(s);
   const half = i < 9 ? 0 : 1;
   const subName = s.half_names[half];
@@ -53,6 +55,8 @@ export function renderHole(root) {
   const names = playerList(s).map(p => p.name);
   const short = n => esc(String(n).replace(/\s/g, ''));
 
+  const strategy = ((s.strategies && s.strategies[i]) || '').replace(/\s+/g, ' ').trim();
+
   let html = `
   <div class="hole-head">
     <button type="button" id="hole-prev" ${i === 0 ? 'disabled' : ''}>◀ 前</button>
@@ -62,11 +66,9 @@ export function renderHole(root) {
     </div>
     <button type="button" id="hole-next" ${i === 17 ? 'disabled' : ''}>次 ▶</button>
   </div>
+  ${strategy ? `<div class="strategy ${strategyOpen ? 'open' : ''}" id="strategy">📍 ${esc(strategy)}</div>` : ''}
   <div class="totals-bar">OUT ${t.out_score}（${t.out_putts}） / IN ${t.in_score}（${t.in_putts}） / 合計 ${t.score} ・ パット ${t.putts}</div>
-  ${tomoHole ? `<div class="tomo-bar">
-    <div>🤝 A組 ${short(names[tomoHole.teamA[0]])}・${short(names[tomoHole.teamA[1]])} vs B組 ${short(names[tomoHole.teamB[0]])}・${short(names[tomoHole.teamB[1]])}</div>
-    <div>${esc(tomodachiHoleText(tomo, i))} ／ 本人 ${tomo.totals[0] > 0 ? '+' : ''}${tomo.totals[0]}pt</div>
-  </div>` : ''}
+  ${tomoHole ? `<div class="tomo-bar">🤝 A ${short(names[tomoHole.teamA[0]])}・${short(names[tomoHole.teamA[1]])} / B ${short(names[tomoHole.teamB[0]])}・${short(names[tomoHole.teamB[1]])} ｜ ${esc(tomodachiHoleText(tomo, i))} ｜ 本人 ${tomo.totals[0] > 0 ? '+' : ''}${tomo.totals[0]}pt</div>` : ''}
 
   <section class="card compact">
     <div class="score-line">スコア <b>${shots.length || s.scores[i] || 0}</b> ・ パット <b>${shots.length ? puttCount : (s.putts[i] || 0)}</b>
@@ -116,10 +118,47 @@ export function renderHole(root) {
   <div class="hole-actions">
     <button type="button" id="hole-confirm" class="primary">このホールを確定</button>
     <button type="button" id="go-finish">確認・終了へ</button>
-  </div>`;
+  </div>
+  <div class="sub-actions">
+    <button type="button" id="open-score">スコア詳細</button>
+    ${tomo ? '<button type="button" id="open-tomo">トモダチ詳細</button>' : ''}
+  </div>
+  ${modalOpen === 'score' ? buildScoreModal(s) : ''}
+  ${modalOpen === 'tomo' && tomo ? buildTomoModal(s, tomo) : ''}`;
 
   root.innerHTML = html;
   bindHoleEvents(root);
+}
+
+function buildScoreModal(s) {
+  const players = playerList(s);
+  const cell = v => (v > 0 ? String(v) : '−');
+  const sum = (arr, a, b) => arr.slice(a, b).reduce((x, y) => x + (y || 0), 0);
+  const rows = players.map((p, pi) => `
+    <div class="modal-player">
+      <div class="modal-player-head">${esc(p.name)} ／ 合計 ${sum(p.scores, 0, 18)}${pi === 0 ? ` ・ パット ${sum(s.putts, 0, 18)}` : ''}</div>
+      <div class="modal-holes">OUT ${p.scores.slice(0, 9).map(cell).join(' ')}</div>
+      <div class="modal-holes">IN&nbsp; ${p.scores.slice(9, 18).map(cell).join(' ')}</div>
+    </div>`).join('');
+  return `<div class="modal-overlay" id="modal-overlay"><div class="modal-box">
+    <h3>スコア詳細</h3>${rows}
+    <button type="button" class="primary modal-close">閉じる</button>
+  </div></div>`;
+}
+
+function buildTomoModal(s, tomo) {
+  const short = n => esc(String(n).replace(/\s/g, ''));
+  const lines = tomo.perHole.map(r => {
+    if (!r.complete) return `<div class="modal-holes">H${r.hole} ― 対象 ${r.bet}pt（未確定）</div>`;
+    const w = r.winner === 'TIE' ? '引分' : `${r.winner}組勝ち`;
+    const pts = r.pts.map((v, ix) => `${short(tomo.players[ix])} ${v > 0 ? '+' : ''}${v}`).join(' / ');
+    return `<div class="modal-holes">H${r.hole} ${w} 対象${r.bet}pt：${pts}</div>`;
+  }).join('');
+  return `<div class="modal-overlay" id="modal-overlay"><div class="modal-box">
+    <h3>トモダチ詳細</h3>${lines}
+    <div class="modal-player-head">合計：${tomo.players.map((n, ix) => `${short(n)} ${tomo.totals[ix] > 0 ? '+' : ''}${tomo.totals[ix]}pt`).join(' ／ ')}</div>
+    <button type="button" class="primary modal-close">閉じる</button>
+  </div></div>`;
 }
 
 function bindHoleEvents(root) {
@@ -210,4 +249,20 @@ function bindHoleEvents(root) {
 
   const finishBtn = root.querySelector('#go-finish');
   if (finishBtn) finishBtn.addEventListener('click', () => onNavigate('finish'));
+
+  // 攻略メモ（上部）：タップで全文表示／折りたたみ
+  const strategyEl = root.querySelector('#strategy');
+  if (strategyEl) strategyEl.addEventListener('click', () => { strategyOpen = !strategyOpen; renderHole(root); });
+
+  // 詳細モーダル（下部のボタンから開く。見切れる位置でよい）
+  const openScore = root.querySelector('#open-score');
+  if (openScore) openScore.addEventListener('click', () => { modalOpen = 'score'; renderHole(root); });
+  const openTomo = root.querySelector('#open-tomo');
+  if (openTomo) openTomo.addEventListener('click', () => { modalOpen = 'tomo'; renderHole(root); });
+  const overlay = root.querySelector('#modal-overlay');
+  if (overlay) {
+    overlay.addEventListener('click', e => { if (e.target === overlay) { modalOpen = null; renderHole(root); } });
+    const closeBtn = overlay.querySelector('.modal-close');
+    if (closeBtn) closeBtn.addEventListener('click', () => { modalOpen = null; renderHole(root); });
+  }
 }
