@@ -74,10 +74,10 @@ export function renderHole(root) {
   let html = `
   <div class="hole-head">
     <button type="button" id="hole-prev" ${i === 0 ? 'disabled' : ''}>◀ 前</button>
-    <div class="hole-title" id="hole-title">
-      <div class="hole-name">${esc(subName)} ${i % 9 + 1}H <span class="hole-no">（${s.currentHole}H）</span> <span class="hole-pick-mark">▾</span></div>
-      <div class="hole-meta">Par ${s.pars[i]} ・ ${s.yards[i]}y ・ Hdcp ${s.hdcp[i]}</div>
-    </div>
+    <button type="button" class="hole-title-btn" id="hole-title">
+      <span class="hole-name">${esc(subName)} ${i % 9 + 1}H <span class="hole-no">（${s.currentHole}H）</span> <span class="hole-pick-mark">▾</span></span>
+      <span class="hole-meta">Par ${s.pars[i]} ・ ${s.yards[i]}y ・ Hdcp ${s.hdcp[i]}</span>
+    </button>
     <button type="button" id="hole-next" ${i === 17 ? 'disabled' : ''}>次 ▶</button>
   </div>
   <button type="button" id="open-strategy" class="strategy-btn">📖 攻略メモ${strategy ? '' : '（このホールは未登録）'}</button>
@@ -221,11 +221,12 @@ function buildHolePickerModal(s) {
   const btn = h => {
     const played = (s.scores[h] || 0) > 0;
     const cur = s.currentHole === h + 1;
-    return `<button type="button" class="hole-pick ${cur ? 'cur' : ''} ${played ? 'done' : ''}" data-hole="${h + 1}"><span class="hp-no">${h + 1}H</span><span class="hp-sub">Par${s.pars[h]}${played ? ` ・ ${s.scores[h]}` : ''}</span></button>`;
+    return `<button type="button" class="hole-pick ${cur ? 'cur' : ''} ${played ? 'done' : ''}" data-hole="${h + 1}"><span class="hp-no">${h + 1}H</span><span class="hp-sub">Par${s.pars[h]}${played ? ` ・ ${s.scores[h]}打 ✓` : ''}</span></button>`;
   };
   const cells = Array.from({ length: 18 }, (_, h) => btn(h)).join('');
   return `<div class="modal-overlay" id="modal-overlay"><div class="modal-box">
     <h3>ホール選択（移動だけでは確定しません）</h3>
+    <p class="hint">緑＝入力済み ／ 濃緑＝現在のホール ／ グレー＝未入力</p>
     <div class="hole-pick-grid">${cells}</div>
     <button type="button" class="primary modal-close">閉じる</button>
   </div></div>`;

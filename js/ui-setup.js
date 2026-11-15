@@ -9,7 +9,6 @@ import { WEATHERS, WINDS } from './config.js';
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 let selectedCourse = null;
-let playedOpen = false; // プレー済みコース一覧の開閉（既定は先頭だけ表示）
 let onStart = () => {};
 export function setSetupStartHandler(fn) { onStart = fn; }
 
@@ -18,14 +17,18 @@ export async function renderSetup(root) {
   const cur = getState();
   if (cur) { await renderCurrentSetup(root, cur); return; }
   selectedCourse = null;
-  playedOpen = false;
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const played = await getPlayedCourses();
+  const playedSorted = [...played].sort((a, b) => (b.count - a.count) || String(b.last || '').localeCompare(String(a.last || '')));
   root.innerHTML = `
   <section class="card">
     <h3>コース</h3>
     <input type="search" id="course-q" placeholder="新規コースは名前・かなで検索">
+    <select id="played-select">
+      <option value="">プレー済みコースから選ぶ（回数が多い順）</option>
+      ${playedSorted.map(p => `<option value="${esc(p.course_id)}">${esc(p.name)}（${p.count}回${p.last ? `・${esc(p.last)}` : ''}）</option>`).join('')}
+    </select>
     <div id="course-results"></div>
     <div id="course-selected"></div>
   </section>
@@ -53,26 +56,9 @@ export async function renderSetup(root) {
   </section>
   <button type="button" id="start-round" class="primary" disabled>ラウンド開始</button>`;
 
-  // --- コース選択：初期表示はプレー済みリストのみ。入力したら全マスタを検索 ---
+  // --- コース選択：プレー済みは同伴者と同じプルダウンから。新規は入力して全マスタを検索 ---
   const q = root.querySelector('#course-q');
   const results = root.querySelector('#course-results');
-  const renderPlayed = () => {
-    if (!played.length) {
-      results.innerHTML = '<p class="hint">プレー済みコースがまだありません。上の検索から選んでください（マスタ同期が必要な場合は設定画面から）。</p>';
-      return;
-    }
-    const sorted = [...played].sort((a, b) => (b.count - a.count) || String(b.last || '').localeCompare(String(a.last || '')));
-    if (!playedOpen) {
-      const p = sorted[0];
-      results.innerHTML = '<p class="hint">プレー済みコース（回数が多い順・タップで一覧表示）</p>' +
-        `<button type="button" class="course-item one-line" id="played-toggle"><span class="ci-row"><span class="ci-name">${esc(p.name)}</span><span class="course-meta">${p.count}回${p.last ? ` ・ ${esc(p.last)}` : ''} ▾</span></span></button>`;
-      results.querySelector('#played-toggle').addEventListener('click', () => { playedOpen = true; renderPlayed(); });
-      return;
-    }
-    results.innerHTML = '<p class="hint">プレー済みコース（回数が多い順）</p>' + sorted.map(p =>
-      `<button type="button" class="course-item one-line" data-id="${esc(p.course_id)}"><span class="ci-row"><span class="ci-name">${esc(p.name)}</span><span class="course-meta">${p.count}回${p.last ? ` ・ ${esc(p.last)}` : ''}</span></span></button>`).join('');
-    bindCourseButtons(root, results);
-  };
   const renderSearch = async () => {
     const list = await searchCourses(q.value);
     results.innerHTML = list.map(c =>
@@ -80,10 +66,12 @@ export async function renderSetup(root) {
     bindCourseButtons(root, results);
   };
   q.addEventListener('input', () => {
-    if (!q.value.trim()) renderPlayed();
+    if (!q.value.trim()) results.innerHTML = '';
     else renderSearch();
   });
-  renderPlayed();
+  root.querySelector('#played-select').addEventListener('change', e => {
+    if (e.target.value) selectCourse(root, e.target.value);
+  });
 
   // --- 同伴者スロット（メンバー一覧から選択。新規はその場で入力） ---
   const members = await getMembers();
@@ -265,6 +253,9 @@ async function selectCourse(root, courseId, preset) {
     const btn = root.querySelector(sel);
     if (btn) btn.disabled = false;
   });
+  // プレー済みプルダウンの表示も選択中コースに合わせておく
+  const ps = root.querySelector('#played-select');
+  if (ps) ps.value = [...ps.options].some(o => o.value === String(courseId)) ? String(courseId) : '';
 }
 
 // 進行中のラウンドがあるときのラウンド設定：全項目を変更できる（仕様どおり）。
@@ -272,7 +263,6 @@ async function selectCourse(root, courseId, preset) {
 // 変更は現在の世代だけでなく、バックアップ世代（prev）とクラウド下書きにも上書きする。
 async function renderCurrentSetup(root, s) {
   selectedCourse = null;
-  playedOpen = false;
   const played = await getPlayedCourses();
   const members = await getMembers();
   members.sort((a, b) => (b.count || 0) - (a.count || 0)); // 共回数が多い順
@@ -281,6 +271,10 @@ async function renderCurrentSetup(root, s) {
     <h3>現在のラウンド設定</h3>
     <p class="hint">コース・日付・同伴者も含め、すべて変更できます。入力済みのショットやスコアはホール番号のまま保持され、変更はバックアップとクラウド下書きにも上書きされます。</p>
     <input type="search" id="course-q" placeholder="コースを変更する場合は名前・かなで検索">
+    <select id="played-select">
+      <option value="">プレー済みコースから選ぶ（回数が多い順）</option>
+      ${[...played].sort((a, b) => (b.count - a.count) || String(b.last || '').localeCompare(String(a.last || ''))).map(p => `<option value="${esc(p.course_id)}">${esc(p.name)}（${p.count}回${p.last ? `・${esc(p.last)}` : ''}）</option>`).join('')}
+    </select>
     <div id="course-results"></div>
     <div id="course-selected"></div>
   </section>
@@ -304,26 +298,9 @@ async function renderCurrentSetup(root, s) {
   <button type="button" id="apply-settings" class="primary">設定を更新して入力に戻る</button>
   <button type="button" id="restart-round">新しいラウンドを始める</button>`;
 
-  // --- コース選択（初期表示はプレー済みリスト。現在のコースは下で選択済みにする） ---
+  // --- コース選択（プレー済みは同伴者と同じプルダウンから。現在のコースは下で選択済みにする） ---
   const q = root.querySelector('#course-q');
   const results = root.querySelector('#course-results');
-  const renderPlayed = () => {
-    if (!played.length) {
-      results.innerHTML = '<p class="hint">プレー済みコースがまだありません。上の検索から選んでください。</p>';
-      return;
-    }
-    const sorted = [...played].sort((a, b) => (b.count - a.count) || String(b.last || '').localeCompare(String(a.last || '')));
-    if (!playedOpen) {
-      const p = sorted[0];
-      results.innerHTML = '<p class="hint">プレー済みコース（回数が多い順・タップで一覧表示）</p>' +
-        `<button type="button" class="course-item one-line" id="played-toggle"><span class="ci-row"><span class="ci-name">${esc(p.name)}</span><span class="course-meta">${p.count}回${p.last ? ` ・ ${esc(p.last)}` : ''} ▾</span></span></button>`;
-      results.querySelector('#played-toggle').addEventListener('click', () => { playedOpen = true; renderPlayed(); });
-      return;
-    }
-    results.innerHTML = '<p class="hint">プレー済みコース（回数が多い順）</p>' + sorted.map(p =>
-      `<button type="button" class="course-item one-line" data-id="${esc(p.course_id)}"><span class="ci-row"><span class="ci-name">${esc(p.name)}</span><span class="course-meta">${p.count}回${p.last ? ` ・ ${esc(p.last)}` : ''}</span></span></button>`).join('');
-    bindCourseButtons(root, results);
-  };
   const renderSearch = async () => {
     const list = await searchCourses(q.value);
     results.innerHTML = list.map(c =>
@@ -331,10 +308,12 @@ async function renderCurrentSetup(root, s) {
     bindCourseButtons(root, results);
   };
   q.addEventListener('input', () => {
-    if (!q.value.trim()) renderPlayed();
+    if (!q.value.trim()) results.innerHTML = '';
     else renderSearch();
   });
-  renderPlayed();
+  root.querySelector('#played-select').addEventListener('change', e => {
+    if (e.target.value) selectCourse(root, e.target.value);
+  });
   // 現在のコース・構成を初期選択にする
   await selectCourse(root, s.course_id, {
     halfA: s.half_names[0], halfB: s.half_names[1], tee: s.tee, green: s.green,

@@ -188,3 +188,17 @@ html, body, button { touch-action: manipulation; }
 .course-item.one-line .ci-name { font-weight: bold; color: #1f2328; }
 .course-item.one-line .course-meta { color: #57606a; }
 .course-item.one-line:active { background: #dff2e3; }
+
+/* v0.4.5: ホール名をボタンらしく／ホール選択モーダルのメリハリ強化 */
+.hole-head .hole-title-btn { flex: 1; margin: 0 6px; background: #fff; border: 1.5px solid var(--green); border-radius: 10px; padding: 5px 8px; display: flex; flex-direction: column; align-items: center; gap: 0; }
+.hole-title-btn .hole-name { font-size: 17px; font-weight: bold; color: #1f2328; }
+.hole-title-btn .hole-meta { font-size: 12px; color: #57606a; }
+.hole-title-btn:active { background: #dff2e3; }
+.hole-pick { background: #f6f8fa; border: 1.5px solid var(--border); color: #9aa0a6; }
+.hole-pick .hp-sub { color: #a8adb3; }
+.hole-pick.done { background: #dff2e3; border-color: var(--green); color: #14532d; }
+.hole-pick.done .hp-no { color: #14532d; }
+.hole-pick.done .hp-sub { color: #1a7f37; font-weight: bold; }
+.hole-pick.cur { background: var(--green); color: #fff; border-color: #14532d; box-shadow: 0 0 0 3px rgba(26,127,55,.35); }
+.hole-pick.cur .hp-no { color: #fff; }
+.hole-pick.cur .hp-sub { color: #e6f4ea; font-weight: bold; }
