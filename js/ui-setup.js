@@ -1,8 +1,8 @@
 // ラウンド設定：コース選択（プレー済みリスト＋新規はインクリメンタルサーチ）、条件、同伴者、打順（常時）、端末間復元オプション
 // v0.3: トモダチの使用オプションは廃止。4人なら開始時に自動でゲームを作る。打順はトモダチと無関係に常時設定する。
 import { searchCourses, getMembers, getPlayedCourses } from './master.js';
-import { newRoundState, setState, getState, clearCurrent, saveNow, summarize } from './state.js';
-import { fetchDraft } from './sync.js';
+import { newRoundState, setState, getState, clearCurrent, saveNow, overwritePrevGeneration, summarize } from './state.js';
+import { fetchDraft, saveDraft } from './sync.js';
 import { newGame, shuffleOrder } from './game.js';
 import { WEATHERS, WINDS } from './config.js';
 
@@ -138,16 +138,7 @@ export async function renderSetup(root) {
     const teeName = root.querySelector('#tee-sel').value;
     const greenName = root.querySelector('#green-sel').value;
     const subs = selectedCourse.sub_courses;
-    const pick = name => {
-      const sub = subs.find(x => x.name === name);
-      const tees = sub.tees || [];
-      const tee = tees.find(t => t.tee_name === teeName && t.green_name === greenName)
-        || tees.find(t => t.tee_name === teeName)
-        || tees.find(t => t.green_name === greenName)
-        || tees[0]
-        || { distance_per_hole: sub.pars.map(() => 0) };
-      return { name: sub.name, pars: sub.pars, handicaps: sub.handicaps, yards: tee.distance_per_hole, strategies: sub.hole_strategies || [] };
-    };
+    const pick = name => pickSub(selectedCourse, name, teeName, greenName);
     const partners = collectPartners(root);
     const order = JSON.parse(root.querySelector('#order-list').dataset.order || '[]');
     const finalOrder = order.length ? order : playerNames(root);
@@ -167,6 +158,18 @@ export async function renderSetup(root) {
     await saveNow();
     onStart();
   });
+}
+
+// ハーフ名＋ティー＋グリーンから、state が必要とするハーフ情報を組み立てる
+function pickSub(course, halfName, teeName, greenName) {
+  const sub = (course.sub_courses || []).find(x => x.name === halfName) || course.sub_courses[0];
+  const tees = sub.tees || [];
+  const tee = tees.find(t => t.tee_name === teeName && t.green_name === greenName)
+    || tees.find(t => t.tee_name === teeName)
+    || tees.find(t => t.green_name === greenName)
+    || tees[0]
+    || { distance_per_hole: sub.pars.map(() => 0) };
+  return { name: sub.name, pars: sub.pars, handicaps: sub.handicaps, yards: tee.distance_per_hole, strategies: sub.hole_strategies || [] };
 }
 
 function bindCourseButtons(root, results) {
@@ -223,7 +226,7 @@ function renderOrder(root) {
   });
 }
 
-async function selectCourse(root, courseId) {
+async function selectCourse(root, courseId, preset) {
   const { allCourses } = await import('./master.js');
   const all = await allCourses();
   selectedCourse = all.find(c => String(c.course_id) === String(courseId));
@@ -237,34 +240,47 @@ async function selectCourse(root, courseId) {
     if (!greenNames.includes(t.green_name)) greenNames.push(t.green_name);
     if (t.is_regular_tee && !regularTee) regularTee = t.tee_name;
   }));
+  const halfA = preset && preset.halfA && subs.some(s => s.name === preset.halfA) ? preset.halfA : (subs[0] ? subs[0].name : '');
+  const halfB = preset && preset.halfB && subs.some(s => s.name === preset.halfB) ? preset.halfB : (subs[1] ? subs[1].name : halfA);
+  const teeSel = preset && preset.tee && teeNames.includes(preset.tee) ? preset.tee : regularTee;
+  const greenSel = preset && preset.green && greenNames.includes(preset.green) ? preset.green : (greenNames[0] || '');
   root.querySelector('#course-selected').innerHTML = `
     <p class="selected-course">選択中：${esc(selectedCourse.name)}</p>
-    <div class="row"><label>前半</label><select id="half-a">${subs.map(s => `<option>${esc(s.name)}</option>`).join('')}</select></div>
-    <div class="row"><label>後半</label><select id="half-b">${subs.map((s, ix) => `<option ${ix === 1 ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>
-    <div class="row"><label>ティー</label><select id="tee-sel">${teeNames.map(n => `<option ${n === regularTee ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
-    <div class="row"><label>グリーン</label><select id="green-sel">${greenNames.map(n => `<option>${esc(n)}</option>`).join('')}</select></div>`;
-  root.querySelector('#start-round').disabled = false;
+    <div class="row"><label>前半</label><select id="half-a">${subs.map(s => `<option ${s.name === halfA ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>
+    <div class="row"><label>後半</label><select id="half-b">${subs.map(s => `<option ${s.name === halfB ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>
+    <div class="row"><label>ティー</label><select id="tee-sel">${teeNames.map(n => `<option ${n === teeSel ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+    <div class="row"><label>グリーン</label><select id="green-sel">${greenNames.map(n => `<option ${n === greenSel ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>`;
+  ['#start-round', '#apply-settings'].forEach(sel => {
+    const btn = root.querySelector(sel);
+    if (btn) btn.disabled = false;
+  });
 }
 
-// 進行中のラウンドがあるときのラウンド設定：現在の設定を表示し、天候・風・打順だけ更新できる
+// 進行中のラウンドがあるときのラウンド設定：全項目を変更できる（仕様どおり）。
+// 入力済みのショット・スコアはホール番号のまま保持し、同伴者は名前が一致すればスコアを引き継ぐ。
+// 変更は現在の世代だけでなく、バックアップ世代（prev）とクラウド下書きにも上書きする。
 async function renderCurrentSetup(root, s) {
-  const names = ['桑木修', ...s.partners.map(p => p.name)];
-  const initialOrder = (s.order && s.order.length) ? s.order : ((s.game && s.game.order) || names);
+  selectedCourse = null;
+  const played = await getPlayedCourses();
+  const members = await getMembers();
   root.innerHTML = `
   <section class="card">
     <h3>現在のラウンド設定</h3>
-    <p class="selected-course">${esc(s.course_name)}（${esc(s.date)}）</p>
-    <p>コース構成：${s.half_names.map(esc).join(' / ')}<br>ティー：${esc(s.tee || '—')} ／ グリーン：${esc(s.green || '—')}</p>
-    <p class="hint">コース・日付・同伴者はラウンド中は変更できません。変える場合は下の「新しいラウンドを始める」から（進行中の記録は破棄されます）。</p>
+    <p class="hint">コース・日付・同伴者も含め、すべて変更できます。入力済みのショットやスコアはホール番号のまま保持され、変更はバックアップとクラウド下書きにも上書きされます。</p>
+    <input type="search" id="course-q" placeholder="コースを変更する場合は名前・かなで検索">
+    <div id="course-results"></div>
+    <div id="course-selected"></div>
   </section>
   <section class="card">
     <h3>条件</h3>
+    <div class="row"><label>日付</label><input type="date" id="f-date" value="${esc(s.date)}"></div>
     <div class="row"><label>天候</label><select id="f-weather">${WEATHERS.map(w => `<option ${s.weather === w ? 'selected' : ''}>${w}</option>`).join('')}</select></div>
     <div class="row"><label>風</label><select id="f-wind">${WINDS.map(w => `<option value="${w}" ${s.wind === w ? 'selected' : ''}>${w || '—'}</option>`).join('')}</select></div>
   </section>
   <section class="card">
-    <h3>同伴者</h3>
-    <p>${s.partners.length ? s.partners.map(p => esc(p.name)).join('、') : '同伴者なし'}</p>
+    <h3>同伴者（最大3名）</h3>
+    <div id="partner-slots"></div>
+    <p class="hint">名前が同じ同伴者は、入力済みスコアを引き継ぎます。4人そろうとトモダチ計算を自動で行います。</p>
   </section>
   <section class="card">
     <h3>打順</h3>
@@ -272,23 +288,131 @@ async function renderCurrentSetup(root, s) {
     <ol id="order-list" class="order-list"></ol>
     <p class="hint">手動で変えるときは、入れ替えたい2人を順にタップしてください。</p>
   </section>
-  <button type="button" id="apply-settings" class="primary">更新して入力に戻る</button>
+  <button type="button" id="apply-settings" class="primary">設定を更新して入力に戻る</button>
   <button type="button" id="restart-round">新しいラウンドを始める</button>`;
 
+  // --- コース選択（初期表示はプレー済みリスト。現在のコースは下で選択済みにする） ---
+  const q = root.querySelector('#course-q');
+  const results = root.querySelector('#course-results');
+  const renderPlayed = () => {
+    if (!played.length) {
+      results.innerHTML = '<p class="hint">プレー済みコースがまだありません。上の検索から選んでください。</p>';
+      return;
+    }
+    results.innerHTML = '<p class="hint">プレー済みコース</p>' + played.map(p =>
+      `<button type="button" class="course-item" data-id="${esc(p.course_id)}">${esc(p.name)}<span class="course-meta">${p.count}回${p.last ? ` ・ 最終 ${esc(p.last)}` : ''}</span></button>`).join('');
+    bindCourseButtons(root, results);
+  };
+  const renderSearch = async () => {
+    const list = await searchCourses(q.value);
+    results.innerHTML = list.map(c =>
+      `<button type="button" class="course-item" data-id="${esc(c.course_id)}">${esc(c.name)}</button>`).join('') || '<p>該当なし</p>';
+    bindCourseButtons(root, results);
+  };
+  q.addEventListener('input', () => {
+    if (!q.value.trim()) renderPlayed();
+    else renderSearch();
+  });
+  renderPlayed();
+  // 現在のコース・構成を初期選択にする
+  await selectCourse(root, s.course_id, {
+    halfA: s.half_names[0], halfB: s.half_names[1], tee: s.tee, green: s.green,
+  });
+
+  // --- 同伴者スロット（現在の同伴者を初期値にする） ---
+  const slotsRoot = root.querySelector('#partner-slots');
+  slotsRoot.innerHTML = [0, 1, 2].map(k => `
+    <div class="row">
+      <select class="partner-select" data-slot="${k}">
+        <option value="">同伴者${k + 1}（なし）</option>
+        ${members.map(m => `<option value="${esc(m.name)}">${esc(m.name)}${m.count ? `（${m.count}回）` : ''}</option>`).join('')}
+        <option value="+新規">＋新規入力</option>
+      </select>
+      <input type="text" class="partner-new" data-slot="${k}" placeholder="名前を入力" style="display:none">
+    </div>`).join('');
+  s.partners.forEach((p, k) => {
+    const sel = slotsRoot.querySelector(`.partner-select[data-slot="${k}"]`);
+    const input = slotsRoot.querySelector(`.partner-new[data-slot="${k}"]`);
+    if (!sel) return;
+    if (members.some(m => m.name === p.name)) {
+      sel.value = p.name;
+    } else {
+      sel.value = '+新規';
+      input.style.display = '';
+      input.value = p.name;
+    }
+  });
+  slotsRoot.querySelectorAll('.partner-select').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const input = slotsRoot.querySelector(`.partner-new[data-slot="${sel.dataset.slot}"]`);
+      input.style.display = sel.value === '+新規' ? '' : 'none';
+      if (sel.value === '+新規') input.focus();
+      refreshOrder(root);
+    });
+  });
+  slotsRoot.querySelectorAll('.partner-new').forEach(inp => {
+    inp.addEventListener('input', () => refreshOrder(root));
+  });
+
+  // --- 打順（現在の打順を初期値にする） ---
+  const names = ['桑木修', ...s.partners.map(p => p.name)];
+  const initialOrder = (s.order && s.order.length) ? s.order : ((s.game && s.game.order) || names);
   const list = root.querySelector('#order-list');
   list.dataset.order = JSON.stringify(initialOrder);
-  renderOrder(root);
+  refreshOrder(root);
   root.querySelector('#order-shuffle').addEventListener('click', () => {
-    const curOrder = JSON.parse(list.dataset.order || '[]');
-    list.dataset.order = JSON.stringify(shuffleOrder(curOrder.length ? curOrder : names));
+    list.dataset.order = JSON.stringify(shuffleOrder(playerNames(root)));
     renderOrder(root);
   });
+
+  // --- 更新：state へマージし、現世代・バックアップ・クラウド下書きを上書き ---
   root.querySelector('#apply-settings').addEventListener('click', async () => {
+    if (!selectedCourse) { alert('コースを選択してください'); return; }
+    const halfA = root.querySelector('#half-a').value;
+    const halfB = root.querySelector('#half-b').value;
+    const teeName = root.querySelector('#tee-sel').value;
+    const greenName = root.querySelector('#green-sel').value;
+    const halves = [pickSub(selectedCourse, halfA, teeName, greenName), pickSub(selectedCourse, halfB, teeName, greenName)];
+    const newNames = collectPartners(root);
+    const order = JSON.parse(list.dataset.order || '[]');
+    const finalOrder = order.length ? order : playerNames(root);
+
+    s.date = root.querySelector('#f-date').value;
     s.weather = root.querySelector('#f-weather').value;
     s.wind = root.querySelector('#f-wind').value;
-    const order = JSON.parse(list.dataset.order || '[]');
-    if (order.length) { s.order = order; if (s.game) s.game.order = order; }
+    s.course_id = String(selectedCourse.course_id);
+    s.course_name = selectedCourse.name;
+    s.half_names = halves.map(h => h.name);
+    s.tee = teeName;
+    s.green = greenName;
+    s.round_id = `R${s.date.replace(/-/g, '')}_${s.course_id}`;
+    const pars = [], yards = [], hdcp = [], strategies = [];
+    halves.forEach(sub => {
+      pars.push(...sub.pars); yards.push(...sub.yards); hdcp.push(...sub.handicaps);
+      strategies.push(...(sub.strategies || sub.pars.map(() => '')));
+    });
+    s.pars = pars; s.yards = yards; s.hdcp = hdcp; s.strategies = strategies;
+    // 同伴者：名前が一致すればスコア・パットを引き継ぐ
+    const oldByName = {};
+    s.partners.forEach(p => { oldByName[p.name] = p; });
+    s.partners = newNames.map((name, i) => oldByName[name]
+      ? { partner_id: i + 1, name, scores: oldByName[name].scores, putts: oldByName[name].putts }
+      : { partner_id: i + 1, name, scores: Array.from({ length: 18 }, () => 0), putts: Array.from({ length: 18 }, () => null) });
+    s.order = finalOrder;
+    // ゲーム：4人ならニアピンの記録を引き継いで再構築、それ以外は解除
+    if (newNames.length === 3) {
+      const g = newGame(finalOrder);
+      if (s.game) {
+        if (s.game.nearpin) g.nearpin = s.game.nearpin;
+        if (s.game.dragon) g.dragon = s.game.dragon;
+      }
+      s.game = g;
+    } else {
+      s.game = null;
+    }
     await saveNow();
+    await overwritePrevGeneration();
+    try { await saveDraft(s); } catch (e) { /* 失敗表示はバナー側。入力には進む */ }
     onStart();
   });
   root.querySelector('#restart-round').addEventListener('click', async () => {

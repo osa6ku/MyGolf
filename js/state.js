@@ -88,6 +88,12 @@ export async function rotateGeneration() {
   }
 }
 
+// 設定変更時：バックアップ世代（prev）も現在の内容で上書きする（古い設定が復元で蘇らないように）
+export async function overwritePrevGeneration() {
+  if (!_state) return;
+  await putVerified('round', { key: 'prev', state: _state }, v => v.key);
+}
+
 export async function loadCurrent() {
   const row = await get('round', 'current');
   return row ? row.state : null;
