@@ -104,3 +104,51 @@ input[type="text"], input[type="search"], input[type="url"], input[type="date"],
 .modal-player-head { font-weight: bold; font-size: 14px; margin: 6px 0 2px; }
 .modal-holes { font-size: 13px; line-height: 1.55; font-variant-numeric: tabular-nums; }
 .modal-close { width: 100%; margin-top: 8px; }
+
+/* v0.4: 攻略メモボタン／ショット囲み表示／付随記録ボタン／スコアカード風モーダル／コース1行リスト */
+.strategy-btn { width: 100%; text-align: left; margin-bottom: 8px; background: #fff8e6; border-color: #d4a72c; font-size: 13px; padding: 7px 10px; }
+.strategy-text { font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+.shots-list { display: flex; flex-wrap: wrap; gap: 5px; max-height: none; overflow: visible; margin-bottom: 8px; }
+.shot-box { display: inline-flex; align-items: center; gap: 4px; border: 1.5px solid var(--border); border-radius: 8px; padding: 3px 5px 3px 7px; font-size: 13px; background: #fff; cursor: pointer; white-space: nowrap; }
+.shot-box.target { border-color: var(--green); box-shadow: 0 0 0 2px rgba(26,127,55,.28); }
+.shot-box .shot-no2 { font-size: 11px; color: #57606a; }
+.shot-box .shot-res { font-weight: bold; }
+.shot-box.res-best { background: #e6f4ea; border-color: #34a853; }
+.shot-box.res-best .shot-res { color: #137333; }
+.shot-box.res-good { background: #f0f7e6; border-color: #9bbb59; }
+.shot-box.res-good .shot-res { color: #4a7c14; }
+.shot-box.res-miss { background: #fff4e0; border-color: #e0a63f; }
+.shot-box.res-miss .shot-res { color: #b06000; }
+.shot-box.res-short { background: #fff8c5; border-color: #d4a72c; }
+.shot-box.res-short .shot-res { color: #7a5c00; }
+.shot-box.res-over { background: #f3e8fd; border-color: #a06cd5; }
+.shot-box.res-over .shot-res { color: #6a1bb0; }
+.shot-box.res-bad { background: #fde8e8; border-color: #d66; }
+.shot-box.res-bad .shot-res { color: #b3261e; }
+.badge { font-size: 10px; padding: 1px 5px; border-radius: 8px; color: #fff; font-weight: bold; }
+.badge.b-ob { background: #b3261e; }
+.badge.b-pre4 { background: #7a3b00; }
+.badge.b-pen { background: #e07b00; }
+.badge.b-bunker { background: #b59a55; }
+.mod-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 7px; border-top: 1px dashed var(--border); padding-top: 7px; }
+.mod-btn { font-size: 13px; padding: 6px 9px; }
+.mod-btn.active { background: #1f2328; color: #fff; border-color: #1f2328; font-weight: bold; }
+.mod-btn:disabled { opacity: .35; }
+.course-item.one-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; white-space: nowrap; padding: 7px 10px; }
+.course-item.one-line .ci-name { overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.course-item.one-line .course-meta { margin-left: 0; flex-shrink: 0; }
+.modal-box.wide { max-width: 96vw; padding: 10px; }
+.sc-head { text-align: center; border: 2px solid #1f2328; padding: 6px 4px; background: #fdfdf8; margin-bottom: 6px; }
+.sc-head .sc-course { font-weight: bold; font-size: 15px; }
+.sc-head .sc-sub2 { font-size: 11px; color: #57606a; margin-top: 2px; }
+.sc-wrap { overflow-x: auto; }
+table.scorecard { border-collapse: collapse; width: 100%; font-size: 11px; font-variant-numeric: tabular-nums; background: #fff; }
+table.scorecard th, table.scorecard td { border: 1px solid #8a8f98; padding: 3px 2px; text-align: center; min-width: 21px; }
+table.scorecard th { background: #eef4ee; }
+table.scorecard .sc-name { text-align: left; min-width: 62px; font-size: 11px; white-space: nowrap; padding-left: 5px; font-weight: bold; }
+table.scorecard .sc-sub { background: #e8e8e8; font-weight: bold; }
+table.scorecard .sc-total { background: #dfeee0; font-weight: bold; }
+table.scorecard td.sc-under { color: #137333; font-weight: bold; }
+table.scorecard td.sc-over2 { color: #b3261e; font-weight: bold; }
+table.scorecard tr.sc-par td { color: #57606a; background: #fafafa; }
+.tomo-lines { margin-top: 8px; font-size: 12px; line-height: 1.55; }

@@ -1,14 +1,15 @@
-// ホール入力画面（v0.3: ショット記録方式）
+// ホール入力画面（v0.4: ショット記録方式＋付随記録）
 // - 本人のスコアはショット記録から自動算出（スコア/パットの直接入力は廃止）
 // - 1打の記録 = 番手タップ → 結果タップ の2タップ。PT（パター）も他の番手と同じ扱いで結果をつけられる
-// - バンカーは打数に数えない独立要素（ステッパー）。OB/ペナ/FWも独立要素
+// - OB・プレ4・1ペナ・バンカーはショットへの付随記録（ボタンで付け外し）：OB +1打、プレ4 +2打、1ペナ +1打、バンカー +0
+// - FWはティーショット（1打目）の結果から自動導出するので、独立入力はない
 // - 同伴者はスコアのみ（パットなし）
 // - ホール移動は左右ボタンのみ（チップ列は廃止）。移動では確定しない。確定は「ホール確定」だけ
 // - 4人のときはトモダチの組分けと対象ポイントを上部に表示する
 import { getState, scheduleSave, saveNow, rotateGeneration, totals, syncDerived } from './state.js';
 import { saveDraft } from './sync.js';
 import { calcTomodachi, tomodachiHoleText, playerList } from './game.js';
-import { DEFAULT_CLUBS, SHOT_RESULTS, FW_VALUES } from './config.js';
+import { DEFAULT_CLUBS, SHOT_RESULTS } from './config.js';
 
 let onNavigate = () => {};
 export function setHoleNavHandler(fn) { onNavigate = fn; }
@@ -17,8 +18,8 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 
 let pendingClub = '';
 let pendingHole = 0; // pendingClub が属するホール（ホールが変わったらリセット）
-let modalOpen = null; // 'score' | 'tomo' | null（詳細モーダルは下部のボタンから開く）
-let strategyOpen = false;
+let selShot = -1;    // 付随記録の対象ショット（-1 = 最後のショット）
+let modalOpen = null; // 'score' | 'tomo' | 'strategy' | null
 
 function miniStepper(label, value, kind, extra = '') {
   return `<span class="mini-stepper">
@@ -44,7 +45,7 @@ export function renderHole(root) {
   const s = getState();
   if (!s) { root.innerHTML = '<p>進行中のラウンドがありません。</p>'; return; }
   const i = s.currentHole - 1;
-  if (pendingHole !== s.currentHole) { pendingClub = ''; pendingHole = s.currentHole; strategyOpen = false; }
+  if (pendingHole !== s.currentHole) { pendingClub = ''; pendingHole = s.currentHole; selShot = -1; }
   const t = totals(s);
   const half = i < 9 ? 0 : 1;
   const subName = s.half_names[half];
@@ -56,6 +57,12 @@ export function renderHole(root) {
   const short = n => esc(String(n).replace(/\s/g, ''));
 
   const strategy = ((s.strategies && s.strategies[i]) || '').replace(/\s+/g, ' ').trim();
+  // 付随記録の対象ショット（選択中がなければ最後のショット）
+  const target = shots.length ? (selShot >= 0 && selShot < shots.length ? selShot : shots.length - 1) : -1;
+  const tsh = target >= 0 ? shots[target] : null;
+  const extras = shots.length ? (s.scores[i] || 0) - shots.length : 0;
+  const RES_CLASS = { '◎': 'res-best', '◯': 'res-good', '左': 'res-miss', '右': 'res-miss', '短': 'res-short', '奥': 'res-over', 'ダ': 'res-bad', 'ト': 'res-bad' };
+  const shotBox = (sh, k) => `<span class="shot-box ${RES_CLASS[sh.res] || ''} ${k === target ? 'target' : ''}" data-shotbox="${k}"><span class="shot-no2">${k + 1}打</span><b>${esc(sh.club || '—')}</b><span class="shot-res">${esc(sh.res || '')}</span>${sh.ob ? '<span class="badge b-ob">OB</span>' : ''}${sh.pre4 ? '<span class="badge b-pre4">プレ4</span>' : ''}${sh.pen ? '<span class="badge b-pen">1ペナ</span>' : ''}${sh.isBunker ? '<span class="badge b-bunker">バンカー</span>' : ''}<button type="button" class="shot-x" data-shot="${k}">✕</button></span>`;
 
   let html = `
   <div class="hole-head">
@@ -66,42 +73,38 @@ export function renderHole(root) {
     </div>
     <button type="button" id="hole-next" ${i === 17 ? 'disabled' : ''}>次 ▶</button>
   </div>
-  ${strategy ? `<div class="strategy ${strategyOpen ? 'open' : ''}" id="strategy">📍 ${esc(strategy)}</div>` : ''}
+  <button type="button" id="open-strategy" class="strategy-btn">📖 攻略メモ${strategy ? '' : '（このホールは未登録）'}</button>
   <div class="totals-bar">OUT ${t.out_score}（${t.out_putts}） / IN ${t.in_score}（${t.in_putts}） / 合計 ${t.score} ・ パット ${t.putts}</div>
   ${tomoHole ? `<div class="tomo-bar">🤝 A ${short(names[tomoHole.teamA[0]])}・${short(names[tomoHole.teamA[1]])} / B ${short(names[tomoHole.teamB[0]])}・${short(names[tomoHole.teamB[1]])} ｜ ${esc(tomodachiHoleText(tomo, i))} ｜ 本人 ${tomo.totals[0] > 0 ? '+' : ''}${tomo.totals[0]}pt</div>` : ''}
 
   <section class="card compact">
-    <div class="score-line">スコア <b>${shots.length || s.scores[i] || 0}</b> ・ パット <b>${shots.length ? puttCount : (s.putts[i] || 0)}</b>
-      <span class="hint">番手→結果の2タップで1打追加</span></div>
-    <div class="shots-list">${shots.map((sh, k) =>
-      `<span class="shot-line">${k + 1}打 ${esc(sh.club || '—')} ${esc(sh.res || '')}<button type="button" class="shot-x" data-shot="${k}">✕</button></span>`).join('') || '<span class="hint">まだショットがありません</span>'}</div>
+    <div class="score-line">スコア <b>${s.scores[i] || 0}</b> ・ パット <b>${shots.length ? puttCount : (s.putts[i] || 0)}</b>${extras > 0 ? ` <span class="hint">（罰打 +${extras}）</span>` : ''}
+      <span class="hint">番手をタップ→結果をタップで1打記録</span></div>
+    <div class="shots-list">${shots.map(shotBox).join('') || '<span class="hint">まだショットがありません</span>'}</div>
     <div class="club-grid">${DEFAULT_CLUBS.map(c =>
       `<button type="button" class="club-btn ${pendingClub === c ? 'active' : ''}" data-club="${c}">${c}</button>`).join('')}</div>
     <div class="res-grid">${SHOT_RESULTS.filter(r => r !== '').map(r =>
       `<button type="button" class="res-btn" data-res="${r}">${r}</button>`).join('')}
       <button type="button" class="res-btn" data-res="">なし</button></div>
     <div id="shot-msg" class="warn" style="display:none">まず番手を選んでください</div>
+    <div class="mod-row">
+      <span class="mini-label">${target >= 0 ? `${target + 1}打目に付ける：` : 'ショットへの付随記録：'}</span>
+      <button type="button" class="mod-btn ${tsh && tsh.ob ? 'active' : ''}" data-mod="ob" ${target < 0 ? 'disabled' : ''}>OB +1</button>
+      <button type="button" class="mod-btn ${tsh && tsh.pre4 ? 'active' : ''}" data-mod="pre4" ${target < 0 ? 'disabled' : ''}>プレ4 +2</button>
+      <button type="button" class="mod-btn ${tsh && tsh.pen ? 'active' : ''}" data-mod="pen" ${target < 0 ? 'disabled' : ''}>1ペナ +1</button>
+      <button type="button" class="mod-btn ${tsh && tsh.isBunker ? 'active' : ''}" data-mod="bunker" ${target < 0 ? 'disabled' : ''}>バンカー</button>
+    </div>
   </section>
 
-  <section class="card compact">
+  ${s.pars[i] === 3 && s.game ? `<section class="card compact">
     <div class="elem-row">
-      <span class="mini-label">FW</span>
-      <span class="chip-group" id="fw-group">${FW_VALUES.map(v =>
-        `<button type="button" class="chip ${s.fw[i] === v ? 'active' : ''}" data-fw="${v}">${v}</button>`).join('')}</span>
-    </div>
-    <div class="elem-row">
-      ${miniStepper('OB', s.ob[i], 'ob')}
-      ${miniStepper('ペナ', s.pen[i], 'pen')}
-      ${miniStepper('バンカー', s.bunker[i], 'bunker')}
-    </div>
-    ${s.pars[i] === 3 && s.game ? `<div class="elem-row">
       <span class="mini-label">ニアピン</span>
       <select id="nearpin-sel">
         <option value="">なし</option>
         ${names.map(n => `<option value="${esc(n)}" ${s.game.nearpin['H' + (i + 1)] === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}
       </select>
-    </div>` : ''}
-  </section>
+    </div>
+  </section>` : ''}
 
   ${s.partners.length ? `<section class="card compact">
     ${s.partners.map((p, pi) => `
@@ -124,39 +127,99 @@ export function renderHole(root) {
     ${tomo ? '<button type="button" id="open-tomo">トモダチ詳細</button>' : ''}
   </div>
   ${modalOpen === 'score' ? buildScoreModal(s) : ''}
-  ${modalOpen === 'tomo' && tomo ? buildTomoModal(s, tomo) : ''}`;
+  ${modalOpen === 'tomo' && tomo ? buildTomoModal(s, tomo) : ''}
+  ${modalOpen === 'strategy' ? buildStrategyModal(s, i, strategy) : ''}`;
 
   root.innerHTML = html;
   bindHoleEvents(root);
 }
 
+// スコアカード形式（横長・本物のカード風）：ホール番号／Par／各プレイヤーのスコア／本人のパット
+function scorecardHead(s, title) {
+  return `<div class="sc-head">
+    <div class="sc-course">${esc(s.course_name)}</div>
+    <div class="sc-sub2">${esc(s.date)} ・ ${s.half_names.map(esc).join(' → ')} ・ ティー ${esc(s.tee || '—')} ／ グリーン ${esc(s.green || '—')} ・ ${esc(title)}</div>
+  </div>`;
+}
+
+function scHeaderRow() {
+  const th = (label, cls = '') => `<th class="${cls}">${label}</th>`;
+  let cells = '';
+  for (let h = 1; h <= 9; h++) cells += th(h);
+  cells += th('OUT', 'sc-sub');
+  for (let h = 10; h <= 18; h++) cells += th(h);
+  cells += th('IN', 'sc-sub') + th('TOTAL', 'sc-total');
+  return `<tr><th class="sc-name">HOLE</th>${cells}</tr>`;
+}
+
+function scRow(label, values, pars, isParRow = false) {
+  const sum = (a, b) => values.slice(a, b).reduce((x, y) => x + (y || 0), 0);
+  const cell = (v, h) => {
+    if (isParRow) return `<td>${v || ''}</td>`;
+    if (!v) return '<td>−</td>';
+    const d = pars ? v - pars[h] : 0;
+    const cls = pars && d < 0 ? 'sc-under' : (pars && d >= 2 ? 'sc-over2' : '');
+    return `<td class="${cls}">${v}</td>`;
+  };
+  let cells = '';
+  for (let h = 0; h < 9; h++) cells += cell(values[h], h);
+  cells += `<td class="sc-sub">${sum(0, 9) || '−'}</td>`;
+  for (let h = 9; h < 18; h++) cells += cell(values[h], h);
+  cells += `<td class="sc-sub">${sum(9, 18) || '−'}</td><td class="sc-total">${sum(0, 18) || '−'}</td>`;
+  return `<tr${isParRow ? ' class="sc-par"' : ''}><td class="sc-name">${esc(label)}</td>${cells}</tr>`;
+}
+
 function buildScoreModal(s) {
   const players = playerList(s);
-  const cell = v => (v > 0 ? String(v) : '−');
-  const sum = (arr, a, b) => arr.slice(a, b).reduce((x, y) => x + (y || 0), 0);
-  const rows = players.map((p, pi) => `
-    <div class="modal-player">
-      <div class="modal-player-head">${esc(p.name)} ／ 合計 ${sum(p.scores, 0, 18)}${pi === 0 ? ` ・ パット ${sum(s.putts, 0, 18)}` : ''}</div>
-      <div class="modal-holes">OUT ${p.scores.slice(0, 9).map(cell).join(' ')}</div>
-      <div class="modal-holes">IN&nbsp; ${p.scores.slice(9, 18).map(cell).join(' ')}</div>
-    </div>`).join('');
-  return `<div class="modal-overlay" id="modal-overlay"><div class="modal-box">
-    <h3>スコア詳細</h3>${rows}
+  const rows = [
+    scRow('Par', s.pars, null, true),
+    ...players.map(p => scRow(p.name, p.scores, s.pars)),
+    scRow('パット（本人）', s.putts, null),
+  ].join('');
+  return `<div class="modal-overlay" id="modal-overlay"><div class="modal-box wide">
+    ${scorecardHead(s, 'スコアカード')}
+    <div class="sc-wrap"><table class="scorecard">${scHeaderRow()}${rows}</table></div>
     <button type="button" class="primary modal-close">閉じる</button>
   </div></div>`;
 }
 
 function buildTomoModal(s, tomo) {
-  const short = n => esc(String(n).replace(/\s/g, ''));
+  const short = n => String(n).replace(/\s/g, '');
+  // プレイヤー×ホールのポイントをスコアカード形式で
+  const ptValues = tomo.players.map((_, pi) => tomo.perHole.map(r => (r.complete ? r.pts[pi] : 0)));
+  const ptCell = (v, r) => {
+    if (!r.complete) return '<td>−</td>';
+    return `<td class="${v > 0 ? 'sc-under' : (v < 0 ? 'sc-over2' : '')}">${v > 0 ? '+' + v : v}</td>`;
+  };
+  const ptRow = (name, pi) => {
+    const vals = ptValues[pi];
+    const sum = (a, b) => vals.slice(a, b).reduce((x, y) => x + (y || 0), 0);
+    let cells = '';
+    for (let h = 0; h < 9; h++) cells += ptCell(vals[h], tomo.perHole[h]);
+    cells += `<td class="sc-sub">${sum(0, 9)}</td>`;
+    for (let h = 9; h < 18; h++) cells += ptCell(vals[h], tomo.perHole[h]);
+    cells += `<td class="sc-sub">${sum(9, 18)}</td><td class="sc-total">${tomo.totals[pi] > 0 ? '+' : ''}${tomo.totals[pi]}</td>`;
+    return `<tr><td class="sc-name">${esc(short(name))}</td>${cells}</tr>`;
+  };
   const lines = tomo.perHole.map(r => {
-    if (!r.complete) return `<div class="modal-holes">H${r.hole} ― 対象 ${r.bet}pt（未確定）</div>`;
-    const w = r.winner === 'TIE' ? '引分' : `${r.winner}組勝ち`;
-    const pts = r.pts.map((v, ix) => `${short(tomo.players[ix])} ${v > 0 ? '+' : ''}${v}`).join(' / ');
-    return `<div class="modal-holes">H${r.hole} ${w} 対象${r.bet}pt：${pts}</div>`;
+    const a = `${short(tomo.players[r.teamA[0]])}・${short(tomo.players[r.teamA[1]])}`;
+    const b = `${short(tomo.players[r.teamB[0]])}・${short(tomo.players[r.teamB[1]])}`;
+    if (!r.complete) return `<div>H${r.hole} A ${a} ／ B ${b} ― 対象 ${r.bet}pt（未確定）</div>`;
+    const w = r.winner === 'TIE' ? '引分（持越し）' : `${r.winner}組勝ち`;
+    return `<div>H${r.hole} A ${a} ／ B ${b} ― 対象 ${r.bet}pt ・ ${w}</div>`;
   }).join('');
+  return `<div class="modal-overlay" id="modal-overlay"><div class="modal-box wide">
+    ${scorecardHead(s, 'トモダチ')}
+    <div class="sc-wrap"><table class="scorecard">${scHeaderRow()}${tomo.players.map((n, pi) => ptRow(n, pi)).join('')}</table></div>
+    <div class="tomo-lines">${lines}</div>
+    <button type="button" class="primary modal-close">閉じる</button>
+  </div></div>`;
+}
+
+function buildStrategyModal(s, i, strategy) {
   return `<div class="modal-overlay" id="modal-overlay"><div class="modal-box">
-    <h3>トモダチ詳細</h3>${lines}
-    <div class="modal-player-head">合計：${tomo.players.map((n, ix) => `${short(n)} ${tomo.totals[ix] > 0 ? '+' : ''}${tomo.totals[ix]}pt`).join(' ／ ')}</div>
+    <h3>${i + 1}H 攻略メモ（Par ${s.pars[i]} ・ ${s.yards[i]}y）</h3>
+    ${strategy ? `<p class="strategy-text">${esc(strategy)}</p>` : '<p class="hint">このホールの攻略メモはコースマスタに登録されていません。</p>'}
     <button type="button" class="primary modal-close">閉じる</button>
   </div></div>`;
 }
@@ -181,7 +244,8 @@ function bindHoleEvents(root) {
         return;
       }
       ensureShots(s, i);
-      s.shots[i].push({ club: pendingClub, res: btn.dataset.res, isBunker: false, type: 'club' });
+      s.shots[i].push({ club: pendingClub, res: btn.dataset.res, isBunker: false, type: 'club', ob: false, pre4: false, pen: false });
+      selShot = -1; // 付随記録の対象は、いま入れたショットにする
       syncDerived(s, i);
       scheduleSave();
       renderHole(root);
@@ -191,21 +255,47 @@ function bindHoleEvents(root) {
     btn.addEventListener('click', () => {
       ensureShots(s, i);
       s.shots[i].splice(Number(btn.dataset.shot), 1);
+      selShot = -1;
       syncDerived(s, i);
       scheduleSave();
       renderHole(root);
     });
   });
 
-  // 独立要素（OB/ペナ/バンカー）と同伴者スコア
+  // ショットの囲みをタップすると、そのショットが付随記録の対象になる
+  root.querySelectorAll('[data-shotbox]').forEach(box => {
+    box.addEventListener('click', e => {
+      if (e.target.classList.contains('shot-x')) return;
+      selShot = Number(box.dataset.shotbox);
+      renderHole(root);
+    });
+  });
+
+  // 付随記録（OB・プレ4・1ペナ・バンカー）：対象ショットへの付け外し
+  root.querySelectorAll('[data-mod]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      ensureShots(s, i);
+      const shots = s.shots[i];
+      if (!shots.length) return;
+      const t = (selShot >= 0 && selShot < shots.length) ? selShot : shots.length - 1;
+      const sh = shots[t];
+      const kind = btn.dataset.mod;
+      if (kind === 'ob') sh.ob = !sh.ob;
+      else if (kind === 'pre4') sh.pre4 = !sh.pre4;
+      else if (kind === 'pen') sh.pen = !sh.pen;
+      else if (kind === 'bunker') sh.isBunker = !sh.isBunker;
+      syncDerived(s, i);
+      scheduleSave();
+      renderHole(root);
+    });
+  });
+
+  // 同伴者スコア
   root.querySelectorAll('[data-step]').forEach(btn => {
     btn.addEventListener('click', () => {
       const d = Number(btn.dataset.step);
       const kind = btn.dataset.kind;
-      if (kind === 'ob') s.ob[i] = clamp((s.ob[i] || 0) + d, 0, 5);
-      else if (kind === 'pen') s.pen[i] = clamp((s.pen[i] || 0) + d, 0, 5);
-      else if (kind === 'bunker') s.bunker[i] = clamp((s.bunker[i] || 0) + d, 0, 5);
-      else if (kind === 'p-score') { const p = s.partners[Number(btn.dataset.partner)]; p.scores[i] = clamp((p.scores[i] || 0) + d, 0, 20); }
+      if (kind === 'p-score') { const p = s.partners[Number(btn.dataset.partner)]; p.scores[i] = clamp((p.scores[i] || 0) + d, 0, 20); }
       scheduleSave();
       renderHole(root);
     });
@@ -216,14 +306,6 @@ function bindHoleEvents(root) {
   const next = root.querySelector('#hole-next');
   if (prev) prev.addEventListener('click', async () => { await saveNow().catch(() => {}); s.currentHole--; scheduleSave(); renderHole(root); });
   if (next) next.addEventListener('click', async () => { await saveNow().catch(() => {}); s.currentHole++; scheduleSave(); renderHole(root); });
-
-  root.querySelectorAll('#fw-group .chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      s.fw[i] = s.fw[i] === chip.dataset.fw ? null : chip.dataset.fw;
-      scheduleSave();
-      renderHole(root);
-    });
-  });
 
   const nearpin = root.querySelector('#nearpin-sel');
   if (nearpin) nearpin.addEventListener('change', () => {
@@ -250,9 +332,9 @@ function bindHoleEvents(root) {
   const finishBtn = root.querySelector('#go-finish');
   if (finishBtn) finishBtn.addEventListener('click', () => onNavigate('finish'));
 
-  // 攻略メモ（上部）：タップで全文表示／折りたたみ
-  const strategyEl = root.querySelector('#strategy');
-  if (strategyEl) strategyEl.addEventListener('click', () => { strategyOpen = !strategyOpen; renderHole(root); });
+  // 攻略メモボタン：モーダルで全文表示
+  const strategyBtn = root.querySelector('#open-strategy');
+  if (strategyBtn) strategyBtn.addEventListener('click', () => { modalOpen = 'strategy'; renderHole(root); });
 
   // 詳細モーダル（下部のボタンから開く。見切れる位置でよい）
   const openScore = root.querySelector('#open-score');

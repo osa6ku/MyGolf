@@ -60,7 +60,7 @@ export async function renderSetup(root) {
       return;
     }
     results.innerHTML = '<p class="hint">プレー済みコース</p>' + played.map(p =>
-      `<button type="button" class="course-item" data-id="${esc(p.course_id)}">${esc(p.name)}<span class="course-meta">${p.count}回${p.last ? ` ・ 最終 ${esc(p.last)}` : ''}</span></button>`).join('');
+      `<button type="button" class="course-item one-line" data-id="${esc(p.course_id)}"><span class="ci-name">${esc(p.name)}</span><span class="course-meta">${p.count}回${p.last ? ` ・ ${esc(p.last)}` : ''}</span></button>`).join('');
     bindCourseButtons(root, results);
   };
   const renderSearch = async () => {
@@ -300,7 +300,7 @@ async function renderCurrentSetup(root, s) {
       return;
     }
     results.innerHTML = '<p class="hint">プレー済みコース</p>' + played.map(p =>
-      `<button type="button" class="course-item" data-id="${esc(p.course_id)}">${esc(p.name)}<span class="course-meta">${p.count}回${p.last ? ` ・ 最終 ${esc(p.last)}` : ''}</span></button>`).join('');
+      `<button type="button" class="course-item one-line" data-id="${esc(p.course_id)}"><span class="ci-name">${esc(p.name)}</span><span class="course-meta">${p.count}回${p.last ? ` ・ ${esc(p.last)}` : ''}</span></button>`).join('');
     bindCourseButtons(root, results);
   };
   const renderSearch = async () => {

@@ -112,13 +112,26 @@ export async function clearCurrent() {
 }
 
 // --- 集計 ---
-// ショット記録が本人のスコアの正（v0.3〜）。ショットを編集したら scores/putts/clubs を同期する。
-// バンカーは独立要素で、ここには一切含めない（打数に数えない）。
+// ショット記録が本人のスコアの正（v0.3〜）。ショットを編集したら scores/putts/clubs と
+// OB/ペナ/バンカー/FW をすべてショットから導出する（独立入力は v0.4 で廃止）。
+// 1打分の打数：通常1打。OBは+1、プレ4は+2、1ペナは+1。バンカーは+0（記録のみ）。
+export function shotStrokes(sh) {
+  return 1 + (sh.ob ? 1 : 0) + (sh.pre4 ? 2 : 0) + (sh.pen ? 1 : 0);
+}
+
+// ティーショット（1打目）の結果 → FW表記（MyScoreと同じ対応）
+const FW_FROM_RES = { '◎': 'K', '◯': 'K', '左': 'L', '右': 'R', '短': 'S', '奥': 'O' };
+
 export function syncDerived(s, i) {
   const shots = s.shots[i] || [];
-  s.scores[i] = shots.length;
+  s.scores[i] = shots.reduce((a, sh) => a + shotStrokes(sh), 0);
   s.putts[i] = shots.filter(sh => sh.club === 'PT').length;
   s.clubs[i] = shots.length ? shots[0].club : '';
+  s.ob[i] = shots.filter(sh => sh.ob).length;
+  s.pen[i] = shots.filter(sh => sh.pen).length + shots.filter(sh => sh.pre4).length;
+  s.bunker[i] = shots.filter(sh => sh.isBunker).length;
+  const first = shots[0];
+  s.fw[i] = (s.pars[i] >= 4 && first && first.res) ? (FW_FROM_RES[first.res] || null) : null;
 }
 
 export function holePlayed(s, i) {
@@ -133,7 +146,7 @@ export function totals(s) {
   let fwKeep = 0, fwTotal = 0;
   s.fw.forEach((v, i) => {
     if (s.pars[i] === 3) return;
-    if (v) { fwTotal++; if (v === 'K' || v === 'S') fwKeep++; }
+    if (v) { fwTotal++; if (v === 'K') fwKeep++; }
   });
   return {
     out_score: sum(s.scores, 0, 9), in_score: sum(s.scores, 9, 18),
