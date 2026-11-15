@@ -81,8 +81,8 @@ export function renderHole(root) {
     <button type="button" id="hole-next" ${i === 17 ? 'disabled' : ''}>次 ▶</button>
   </div>
   <button type="button" id="open-strategy" class="strategy-btn">📖 攻略メモ${strategy ? '' : '（このホールは未登録）'}</button>
-  <div class="totals-bar">OUT ${t.out_score}（${t.out_putts}） / IN ${t.in_score}（${t.in_putts}） / 合計 ${t.score} ・ パット ${t.putts}</div>
-  ${tomoHole ? `<div class="tomo-bar">A ${n2(names[tomoHole.teamA[0]])}・${n2(names[tomoHole.teamA[1]])} / B ${n2(names[tomoHole.teamB[0]])}・${n2(names[tomoHole.teamB[1]])} ｜ ${esc(tomoShort(tomo, i))} ｜ 本人 ${tomo.totals[0] > 0 ? '+' : ''}${tomo.totals[0]}pt</div>` : ''}
+  <button type="button" id="open-score" class="totals-bar btn-bar">OUT ${t.out_score}（${t.out_putts}） / IN ${t.in_score}（${t.in_putts}） / 合計 ${t.score} ・ パット ${t.putts}</button>
+  ${tomoHole ? `<button type="button" id="open-tomo" class="tomo-bar btn-bar">A ${n2(names[tomoHole.teamA[0]])}・${n2(names[tomoHole.teamA[1]])} / B ${n2(names[tomoHole.teamB[0]])}・${n2(names[tomoHole.teamB[1]])} ｜ ${esc(tomoShort(tomo, i))} ｜ 本人 ${tomo.totals[0] > 0 ? '+' : ''}${tomo.totals[0]}pt</button>` : ''}
 
   <section class="card compact">
     <div class="score-line">スコア <b>${s.scores[i] || 0}</b> ・ パット <b>${shots.length ? puttCount : (s.putts[i] || 0)}</b>${extras > 0 ? ` <span class="hint">（罰打 +${extras}）</span>` : ''}
@@ -94,7 +94,7 @@ export function renderHole(root) {
       `<button type="button" class="res-btn" data-res="${r}">${r}</button>`).join('')}</div>
     <div id="shot-msg" class="warn" style="display:none">まず番手を選んでください</div>
     <div class="mod-row">
-      <span class="mini-label">${target >= 0 ? `${target + 1}打目に付ける：` : 'ショットへの付随記録：'}</span>
+      <span class="mini-label">ハザード：</span>
       <button type="button" class="mod-btn ${tsh && tsh.ob ? 'active' : ''}" data-mod="ob" ${target < 0 ? 'disabled' : ''}>OB +1</button>
       <button type="button" class="mod-btn ${tsh && tsh.pre4 ? 'active' : ''}" data-mod="pre4" ${target < 0 ? 'disabled' : ''}>プレ4 +2</button>
       <button type="button" class="mod-btn ${tsh && tsh.pen ? 'active' : ''}" data-mod="pen" ${target < 0 ? 'disabled' : ''}>1ペナ +1</button>
@@ -116,21 +116,17 @@ export function renderHole(root) {
     ${s.partners.map((p, pi) => `
     <div class="elem-row">
       <span class="partner-name">${esc(p.name)}</span>
-      ${miniStepper('スコア', p.scores[i], 'p-score', `data-partner="${pi}"`)}
+      ${miniStepper('スコア', p.scores[i] || s.pars[i], 'p-score', `data-partner="${pi}"`)}
     </div>`).join('')}
   </section>` : ''}
 
-  <section class="card compact">
+  <section class="card compact memo-row">
     <textarea id="hole-memo" rows="1" placeholder="ホールメモ">${esc(s.holeMemos[i])}</textarea>
+    <button type="button" id="hole-confirm" class="primary">このホールを確定</button>
   </section>
 
   <div class="hole-actions">
-    <button type="button" id="hole-confirm" class="primary">このホールを確定</button>
     <button type="button" id="go-finish">確認・終了へ</button>
-  </div>
-  <div class="sub-actions">
-    <button type="button" id="open-score">スコア詳細</button>
-    ${tomo ? '<button type="button" id="open-tomo">トモダチ詳細</button>' : ''}
   </div>
   ${modalOpen === 'score' ? buildScoreModal(s) : ''}
   ${modalOpen === 'tomo' && tomo ? buildTomoModal(s, tomo) : ''}
@@ -300,7 +296,7 @@ function bindHoleEvents(root) {
     btn.addEventListener('click', () => {
       const d = Number(btn.dataset.step);
       const kind = btn.dataset.kind;
-      if (kind === 'p-score') { const p = s.partners[Number(btn.dataset.partner)]; p.scores[i] = clamp((p.scores[i] || 0) + d, 0, 20); }
+      if (kind === 'p-score') { const p = s.partners[Number(btn.dataset.partner)]; const base = p.scores[i] || s.pars[i]; p.scores[i] = clamp(base + d, 1, 20); }
       scheduleSave();
       renderHole(root);
     });
@@ -327,6 +323,8 @@ function bindHoleEvents(root) {
   // 確定はこのボタンだけ（世代退避＋クラウド下書き）
   const confirmBtn = root.querySelector('#hole-confirm');
   if (confirmBtn) confirmBtn.addEventListener('click', async () => {
+    // 同伴者スコアの未入力はパーで確定する（デフォルト＝パー）
+    s.partners.forEach(p => { if (!p.scores[i]) p.scores[i] = s.pars[i]; });
     await rotateGeneration();
     await saveNow().catch(() => {});
     saveDraft(s).catch(() => {});

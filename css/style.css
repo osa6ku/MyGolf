@@ -156,3 +156,14 @@ table.scorecard tr.sc-par td { color: #57606a; background: #fafafa; }
 /* v0.4.1: 結果ボタン7つに合わせたグリッド／トモダチバーを1行に */
 .res-grid { grid-template-columns: repeat(7, 1fr); }
 .tomo-bar { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* v0.4.2: 速報バーのボタン化／メモ欄右端の確定ボタン／ハザード1行 */
+.btn-bar { display: block; width: 100%; cursor: pointer; }
+.totals-bar.btn-bar { background: #dff2e3; border: 1px solid var(--green); font-weight: bold; color: #1f2328; }
+.tomo-bar.btn-bar { color: #1f2328; }
+.memo-row { display: flex; gap: 8px; align-items: stretch; }
+.memo-row textarea { flex: 1; margin: 0; width: auto; }
+.memo-row button { flex-shrink: 0; }
+.mod-row { flex-wrap: nowrap; }
+.mod-row .mini-label { flex-shrink: 0; font-size: 12px; }
+.mod-btn { font-size: 12px; padding: 6px 7px; white-space: nowrap; }
