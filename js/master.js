@@ -17,7 +17,7 @@ export async function getMembers() {
 
 export async function getPlayedCourses() {
   const played = (await getMeta('playedCourses', [])) || [];
-  const courses = (await getMeta('courses', [])) || [];
+  const courses = await allCourses();
   if (!courses.length) return played;
   // 元データ（Rounds）で名前とIDが食い違う行がある（例：レイクランドのIDが鹿沼72のもの）。
   // 名前がマスタにあれば名前を正としてIDを引き直し、同IDは合算する。
