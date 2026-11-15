@@ -1,12 +1,15 @@
 // MyGolf Service Worker
 // 新バージョンは自動で有効化しない（ラウンド進行中の差し替え防止）。
 // 有効化は次回起動時（waiting のまま放置され、タブが閉じれば自然に切り替わる）。
-const CACHE = 'mygolf-v7';
+const CACHE = 'mygolf-v8';
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icon.svg',
+  './icon-180.png',
+  './icon-192.png',
+  './icon-512.png',
   './css/style.css',
   './js/main.js',
   './js/config.js',
