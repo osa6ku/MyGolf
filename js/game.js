@@ -39,7 +39,8 @@ export function calcTomodachi(s) {
   if (players.length !== 4) return null;
   const orderNames = (s.game && s.game.order) || s.order || players.map(p => p.name);
   const initialIdx = orderNames.map(n => players.findIndex(p => p.name === n)).filter(i => i >= 0);
-  if (initialIdx.length !== 4) return null;
+  // 名前が見つからない／重複していると計算が壊れるので、その場合は計算しない
+  if (initialIdx.length !== 4 || new Set(initialIdx).size !== 4) return null;
 
   const holeOrder = (h) => {
     if (h === 0) return [...initialIdx];

@@ -169,7 +169,7 @@ table.scorecard tr.sc-par td { color: #57606a; background: #fafafa; }
 .mod-btn { font-size: 12px; padding: 6px 7px; white-space: nowrap; }
 
 /* v0.4.3: ダブルタップズーム無効化／コース1行リストの内側レイアウト／ホール選択モーダル */
-html, body, button { touch-action: manipulation; }
+* { touch-action: manipulation; }
 .course-item.one-line { display: block; }
 .course-item.one-line .ci-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .course-item.one-line .ci-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

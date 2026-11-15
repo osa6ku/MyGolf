@@ -57,6 +57,19 @@ export function clear(store) {
   return tx(store, 'readwrite', s => { s.clear(); return true; });
 }
 
+// ストアの全件入れ替えを1トランザクションで原子的に行う（途中中断で全損しない）
+export function replaceAll(store, values) {
+  return openDb().then(db => new Promise((resolve, reject) => {
+    const t = db.transaction(store, 'readwrite');
+    const s = t.objectStore(store);
+    s.clear();
+    for (const v of values) s.put(v);
+    t.oncomplete = () => resolve(true);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error || new Error('transaction aborted'));
+  }));
+}
+
 // 書いて読み戻し、JSON が一致しなければ例外（保存失敗を握りつぶさない）
 export async function putVerified(store, value, keyOf) {
   await put(store, value);

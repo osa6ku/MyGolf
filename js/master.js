@@ -1,11 +1,11 @@
 // コースマスタ：取得・キャッシュ・検索。同期完了時はキャッシュ差し替えのみ（進行中ラウンドに干渉しない）。
-import { clear, put, getAll, setMeta, getMeta } from './db.js';
+import { replaceAll, getAll, setMeta, getMeta } from './db.js';
 import { fetchMaster } from './sync.js';
 
 export async function syncMaster() {
   const { courses, members, played } = await fetchMaster();
-  await clear('master');
-  for (const c of courses) await put('master', c);
+  // 取得が完了してから、1トランザクションで原子的に入れ替える（途中中断でマスタが消えない）
+  await replaceAll('master', courses);
   await setMeta('members', members);
   await setMeta('playedCourses', played);
   return { courses: courses.length, members: members.length, played: played.length };

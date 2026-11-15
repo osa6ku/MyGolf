@@ -1,11 +1,11 @@
 // MyGolf 起動・画面遷移・Service Worker 登録
 import { openDb, getMeta } from './db.js';
 import { APP_VERSION } from './config.js';
-import { getState, setState, loadCurrent, saveNow, totals, toRoundRecord, clearCurrent, summarize } from './state.js';
+import { getState, setState, loadCurrent, saveNow, scheduleSave, totals, toRoundRecord, clearCurrent, summarize, materializePartnerPars } from './state.js';
 import { gasUrl, setGasUrl, pendingList, flushPending, queuePending, saveRoundNow } from './sync.js';
-import { syncMaster, masterCount, getMembers } from './master.js';
+import { syncMaster, masterCount, getMembers, getPlayedCourses } from './master.js';
 import { renderSetup, setSetupStartHandler } from './ui-setup.js';
-import { renderHole, setHoleNavHandler } from './ui-hole.js';
+import { renderHole, setHoleNavHandler, resetHoleModal } from './ui-hole.js';
 import { calcTomodachi } from './game.js';
 import { renderRestore, setRestoreHandler } from './ui-restore.js';
 import { exportRoundJson } from './export.js';
@@ -18,7 +18,7 @@ function show(screen) {
   const el = $(`#screen-${screen}`);
   if (el) el.style.display = '';
   if (screen === 'home') renderHome();
-  if (screen === 'hole') renderHole($('#screen-hole'));
+  if (screen === 'hole') { resetHoleModal(); renderHole($('#screen-hole')); }
   if (screen === 'finish') renderFinish();
   if (screen === 'settings') renderSettings();
   window.scrollTo(0, 0);
@@ -70,6 +70,9 @@ function renderFinish() {
   const s = getState();
   const root = $('#finish-body');
   if (!s) { root.innerHTML = '<p>進行中のラウンドがありません。</p>'; return; }
+  // ホール確定を押していないホールの同伴者スコア（未入力=0）をパーで実体化してから表示・保存する
+  materializePartnerPars(s);
+  scheduleSave();
   const t = totals(s);
   root.innerHTML = `
     <div class="card">
@@ -92,7 +95,10 @@ function renderFinish() {
     </div>`;
   $('#back-hole-btn').addEventListener('click', () => show('hole'));
   $('#export-btn').addEventListener('click', () => exportRoundJson(s));
-  $('#save-round-btn').addEventListener('click', async () => {
+  $('#save-round-btn').addEventListener('click', async ev => {
+    const btn = ev.currentTarget;
+    if (btn.disabled) return;
+    btn.disabled = true; // 弱電波下での連打による二重送信を防ぐ
     const msg = $('#finish-msg');
     const record = toRoundRecord(s);
     try {
@@ -103,6 +109,7 @@ function renderFinish() {
     } catch (err) {
       await queuePending(record);
       msg.textContent = `送信できませんでした。保留キューに入れました（ホームから再送できます）：${err.message || err}`;
+      btn.disabled = false;
     }
   });
 }
@@ -126,7 +133,7 @@ async function renderSettings() {
     </div>
     <div class="card">
       <h3>コースマスタ</h3>
-      <p id="master-count">コース現在 ${await masterCount()} 件 / メンバー ${(await getMembers()).length} 名</p>
+      <p id="master-count">コース現在 ${await masterCount()} 件 / メンバー ${(await getMembers()).length} 名 / プレー済み ${(await getPlayedCourses()).length} コース</p>
       <button type="button" id="master-sync">マスタ同期</button>
       <p id="master-msg"></p>
     </div>
@@ -142,7 +149,7 @@ async function renderSettings() {
       const n = await syncMaster();
       msg.textContent = `コース ${n.courses} 件 / メンバー ${n.members} 名 / プレー済み ${n.played} コースを同期しました。`;
       const mc = document.querySelector('#master-count');
-      if (mc) mc.textContent = `コース現在 ${n.courses} 件 / メンバー ${n.members} 名`;
+      if (mc) mc.textContent = `コース現在 ${n.courses} 件 / メンバー ${n.members} 名 / プレー済み ${n.played} コース`;
     } catch (err) {
       msg.textContent = `失敗：${err.message || err}`;
     }

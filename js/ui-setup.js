@@ -179,12 +179,17 @@ function bindCourseButtons(root, results) {
 
 export function collectPartners(root) {
   const names = [];
+  const push = raw => {
+    // 名前は空白を除いて正規化し、本人と重複は除外する（トモダチ計算の名前照合を壊さないため）
+    const v = String(raw || '').replace(/\s+/g, '');
+    if (!v || v === '桑木修' || names.includes(v)) return;
+    names.push(v);
+  };
   root.querySelectorAll('.partner-select').forEach(sel => {
     if (sel.value === '+新規') {
-      const v = root.querySelector(`.partner-new[data-slot="${sel.dataset.slot}"]`).value.trim();
-      if (v) names.push(v);
+      push(root.querySelector(`.partner-new[data-slot="${sel.dataset.slot}"]`).value);
     } else if (sel.value) {
-      names.push(sel.value);
+      push(sel.value);
     }
   });
   return names;
@@ -366,9 +371,13 @@ async function renderCurrentSetup(root, s) {
     renderOrder(root);
   });
 
-  // --- 更新：state へマージし、現世代・バックアップ・クラウド下書きを上書き ---
-  root.querySelector('#apply-settings').addEventListener('click', async () => {
+  // --- 更新：複製へ変更を適用し、保存が成功してから state を差し替える（失敗時は元のまま）。
+  // 変更は現在の世代だけでなく、バックアップ世代（prev）とクラウド下書きにも上書きする。
+  const applyBtn = root.querySelector('#apply-settings');
+  applyBtn.addEventListener('click', async () => {
     if (!selectedCourse) { alert('コースを選択してください'); return; }
+    if (applyBtn.disabled) return;
+    applyBtn.disabled = true;
     const halfA = root.querySelector('#half-a').value;
     const halfB = root.querySelector('#half-b').value;
     const teeName = root.querySelector('#tee-sel').value;
@@ -378,28 +387,31 @@ async function renderCurrentSetup(root, s) {
     const order = JSON.parse(list.dataset.order || '[]');
     const finalOrder = order.length ? order : playerNames(root);
 
-    s.date = root.querySelector('#f-date').value;
-    s.weather = root.querySelector('#f-weather').value;
-    s.wind = root.querySelector('#f-wind').value;
-    s.course_id = String(selectedCourse.course_id);
-    s.course_name = selectedCourse.name;
-    s.half_names = halves.map(h => h.name);
-    s.tee = teeName;
-    s.green = greenName;
-    s.round_id = `R${s.date.replace(/-/g, '')}_${s.course_id}`;
+    const next = JSON.parse(JSON.stringify(s)); // state は JSON 形式のみで構成される
+    next.date = root.querySelector('#f-date').value;
+    next.weather = root.querySelector('#f-weather').value;
+    next.wind = root.querySelector('#f-wind').value;
+    next.course_id = String(selectedCourse.course_id);
+    next.course_name = selectedCourse.name;
+    next.half_names = halves.map(h => h.name);
+    next.tee = teeName;
+    next.green = greenName;
+    // round_id は開始時刻サフィックスを引き継ぐ（同日・同コースの別ラウンドと衝突させない）
+    const suffix = String(s.round_id || '').split('_')[2] || '000000';
+    next.round_id = `R${next.date.replace(/-/g, '')}_${next.course_id}_${suffix}`;
     const pars = [], yards = [], hdcp = [], strategies = [];
     halves.forEach(sub => {
       pars.push(...sub.pars); yards.push(...sub.yards); hdcp.push(...sub.handicaps);
       strategies.push(...(sub.strategies || sub.pars.map(() => '')));
     });
-    s.pars = pars; s.yards = yards; s.hdcp = hdcp; s.strategies = strategies;
+    next.pars = pars; next.yards = yards; next.hdcp = hdcp; next.strategies = strategies;
     // 同伴者：名前が一致すればスコア・パットを引き継ぐ
     const oldByName = {};
     s.partners.forEach(p => { oldByName[p.name] = p; });
-    s.partners = newNames.map((name, i) => oldByName[name]
+    next.partners = newNames.map((name, i) => oldByName[name]
       ? { partner_id: i + 1, name, scores: oldByName[name].scores, putts: oldByName[name].putts }
       : { partner_id: i + 1, name, scores: Array.from({ length: 18 }, () => 0), putts: Array.from({ length: 18 }, () => null) });
-    s.order = finalOrder;
+    next.order = finalOrder;
     // ゲーム：4人ならニアピンの記録を引き継いで再構築、それ以外は解除
     if (newNames.length === 3) {
       const g = newGame(finalOrder);
@@ -407,13 +419,21 @@ async function renderCurrentSetup(root, s) {
         if (s.game.nearpin) g.nearpin = s.game.nearpin;
         if (s.game.dragon) g.dragon = s.game.dragon;
       }
-      s.game = g;
+      next.game = g;
     } else {
-      s.game = null;
+      next.game = null;
     }
-    await saveNow();
-    await overwritePrevGeneration();
-    try { await saveDraft(s); } catch (e) { /* 失敗表示はバナー側。入力には進む */ }
+    try {
+      setState(next);
+      await saveNow();
+      await overwritePrevGeneration();
+    } catch (e) {
+      setState(s); // 保存できなかったので、メモリ上の設定も元に戻す
+      applyBtn.disabled = false;
+      alert('保存に失敗しました。設定は変更されていません。');
+      return;
+    }
+    try { await saveDraft(next); } catch (e) { /* 失敗表示はバナー側。入力には進む */ }
     onStart();
   });
   root.querySelector('#restart-round').addEventListener('click', async () => {

@@ -55,9 +55,21 @@ export async function fetchMaster() {
   return { courses: data.courses || [], members: data.members || [], played: data.played || [] };
 }
 
-export async function saveDraft(state) {
+// 下書き保存は「呼出時点のスナップショット」を直列に送る。
+// 並列に走らせると、弱電波下のリトライで古い下書きが後から届いてシートに残ることがあるため。
+let _draftChain = Promise.resolve();
+
+export function saveDraft(state) {
+  const snapshot = JSON.parse(JSON.stringify(state));
+  const run = () => saveDraftOnce(snapshot);
+  const p = _draftChain.then(run, run);
+  _draftChain = p.catch(() => {});
+  return p;
+}
+
+async function saveDraftOnce(snapshot) {
   try {
-    const data = await call('saveDraft', { round_id: state.round_id, payload: state });
+    const data = await call('saveDraft', { round_id: snapshot.round_id, payload: snapshot });
     await setMeta('lastDraftSave', data.updated_at || new Date().toISOString());
     emit('mygolf-draft-status', { ok: true, at: data.updated_at });
     return data;

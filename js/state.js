@@ -16,8 +16,12 @@ export function newRoundState(setup) {
     strategies.push(...(sub.strategies || sub.pars.map(() => '')));
   });
   const yyyymmdd = setup.date.replace(/-/g, '');
+  // 同日・同コースの2ラウンド目やテスト保存と衝突しないよう、開始時刻のサフィックスを付ける
+  const now = new Date();
+  const suffix = [now.getHours(), now.getMinutes(), now.getSeconds()]
+    .map(v => String(v).padStart(2, '0')).join('');
   return {
-    round_id: `R${yyyymmdd}_${setup.course_id}`,
+    round_id: `R${yyyymmdd}_${setup.course_id}_${suffix}`,
     date: setup.date,
     course_id: String(setup.course_id),
     course_name: setup.course_name,
@@ -64,20 +68,29 @@ export function scheduleSave() {
   _saveTimer = setTimeout(() => { saveNow().catch(() => {}); }, 300);
 }
 
-export async function saveNow() {
-  if (!_state) return;
+// 保存は直列化する：実行中の保存があるときは後ろに並び、古い保存が新しい状態を上書きしないようにする
+let _saveChain = Promise.resolve();
+
+export function saveNow() {
+  if (!_state) return Promise.resolve();
   if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
-  _state.updated_at = new Date().toISOString();
-  try {
-    await putVerified('round', { key: 'current', state: _state }, v => v.key);
-    _saveError = null;
-    await setMeta('lastLocalSave', _state.updated_at);
-    emit('mygolf-save-status', { ok: true, at: _state.updated_at });
-  } catch (err) {
-    _saveError = String(err && err.message || err);
-    emit('mygolf-save-status', { ok: false, error: _saveError });
-    throw err;
-  }
+  const run = async () => {
+    if (!_state) return;
+    _state.updated_at = new Date().toISOString();
+    try {
+      await putVerified('round', { key: 'current', state: _state }, v => v.key);
+      _saveError = null;
+      await setMeta('lastLocalSave', _state.updated_at);
+      emit('mygolf-save-status', { ok: true, at: _state.updated_at });
+    } catch (err) {
+      _saveError = String(err && err.message || err);
+      emit('mygolf-save-status', { ok: false, error: _saveError });
+      throw err;
+    }
+  };
+  const p = _saveChain.then(run, run);
+  _saveChain = p.catch(() => {});
+  return p;
 }
 
 // ホール確定時：現世代を 'prev' に退避してから続行（世代ローテーション）
@@ -119,8 +132,8 @@ export function shotStrokes(sh) {
   return 1 + (sh.ob ? 1 : 0) + (sh.pre4 ? 2 : 0) + (sh.pen ? 1 : 0);
 }
 
-// ティーショット（1打目）の結果 → FW表記（MyScoreと同じ対応）
-const FW_FROM_RES = { '◎': 'K', '◯': 'K', '左': 'L', '右': 'R', '短': 'S', '奥': 'O' };
+// ティーショット（1打目）の結果 → FW表記（MyScoreと同じ対応）。結果ボタンは '◯'（U+25EF）で統一。
+const FW_FROM_RES = { '◯': 'K', '左': 'L', '右': 'R', '短': 'S', '奥': 'O' };
 
 export function syncDerived(s, i) {
   const shots = s.shots[i] || [];
@@ -136,6 +149,16 @@ export function syncDerived(s, i) {
 
 export function holePlayed(s, i) {
   return (s.scores[i] || 0) > 0;
+}
+
+// 同伴者スコアの未入力（0）は「デフォルト＝パー」。ホール確定を押さずに終了画面へ進んでも
+// 0のまま保存されないよう、本人がプレーしたホールについては保存前にパーで実体化する。
+export function materializePartnerPars(s) {
+  s.partners.forEach(p => {
+    for (let i = 0; i < 18; i++) {
+      if (!p.scores[i] && holePlayed(s, i)) p.scores[i] = s.pars[i];
+    }
+  });
 }
 
 export function totals(s) {
@@ -160,6 +183,7 @@ export function totals(s) {
 
 // state → Rounds 行（GAS saveRound の round オブジェクト）
 export function toRoundRecord(s) {
+  materializePartnerPars(s); // 未確定ホールの同伴者スコア（0）をパーで補完してから写像する
   const t = totals(s);
   const memo = s.holeMemos
     .map((m, i) => m ? `H${i + 1}:${m}` : '')

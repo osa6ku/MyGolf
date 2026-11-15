@@ -21,6 +21,9 @@ let pendingHole = 0; // pendingClub が属するホール（ホールが変わ�
 let selShot = -1;    // 付随記録の対象ショット（-1 = 最後のショット）
 let modalOpen = null; // 'score' | 'tomo' | 'strategy' | null
 
+// 画面遷移時にモーダル状態を持ち越さない（開いたまま別タブへ行って戻ると残るのを防ぐ）
+export function resetHoleModal() { modalOpen = null; }
+
 function miniStepper(label, value, kind, extra = '') {
   return `<span class="mini-stepper">
     <span class="mini-label">${label}</span>
@@ -30,14 +33,27 @@ function miniStepper(label, value, kind, extra = '') {
   </span>`;
 }
 
-// v0.2以前の下書き（スコアだけあってショットが無いホール）をショット配列へ変換する（編集を始めたときだけ）
+// v0.2以前の下書き（スコアだけあってショットが無いホール）をショット配列へ変換する（編集を始めたときだけ）。
+// 既存の集計（番手・FW・OB・ペナ・バンカー）が syncDerived で消えないよう、ダミーショットへ情報を種付けする。
+// ※旧形式ではプレ4と1ペナの内訳が残っていないため、ペナはすべて+1打として再現する（近似）。
 function ensureShots(s, i) {
   if ((s.shots[i] || []).length > 0) return;
   if ((s.scores[i] || 0) <= 0) return;
   const putts = Math.min(s.putts[i] || 0, s.scores[i]);
+  const ob = s.ob[i] || 0, pen = s.pen[i] || 0, bunker = s.bunker[i] || 0;
+  const base = Math.max(s.scores[i] - putts - ob - pen, 0);
+  const mk = club => ({ club, res: '', isBunker: false, type: 'club', ob: false, pre4: false, pen: false });
   const arr = [];
-  for (let k = 0; k < s.scores[i] - putts; k++) arr.push({ club: '', res: '', isBunker: false, type: 'club' });
-  for (let k = 0; k < putts; k++) arr.push({ club: 'PT', res: '', isBunker: false, type: 'club' });
+  for (let k = 0; k < base; k++) arr.push(mk(''));
+  for (let k = 0; k < putts; k++) arr.push(mk('PT'));
+  if (arr.length) {
+    if (arr[0].club !== 'PT' && s.clubs[i]) arr[0].club = s.clubs[i];
+    const RES_FROM_FW = { K: '◯', L: '左', R: '右', S: '短', O: '奥' };
+    if (s.pars[i] >= 4 && s.fw[i] && RES_FROM_FW[s.fw[i]]) arr[0].res = RES_FROM_FW[s.fw[i]];
+    for (let k = 0; k < Math.min(ob, arr.length); k++) arr[k].ob = true;
+    for (let k = 0; k < Math.min(pen, arr.length); k++) arr[k].pen = true;
+    for (let k = 0; k < Math.min(bunker, arr.length); k++) arr[k].isBunker = true;
+  }
   s.shots[i] = arr;
 }
 
@@ -68,7 +84,7 @@ export function renderHole(root) {
   const target = shots.length ? (selShot >= 0 && selShot < shots.length ? selShot : shots.length - 1) : -1;
   const tsh = target >= 0 ? shots[target] : null;
   const extras = shots.length ? (s.scores[i] || 0) - shots.length : 0;
-  const RES_CLASS = { '◎': 'res-best', '◯': 'res-good', '左': 'res-miss', '右': 'res-miss', '短': 'res-short', '奥': 'res-over', 'ダ': 'res-bad', 'ト': 'res-bad' };
+  const RES_CLASS = { '◯': 'res-good', '左': 'res-miss', '右': 'res-miss', '短': 'res-short', '奥': 'res-over', 'ダ': 'res-bad', 'ト': 'res-bad' };
   const shotBox = (sh, k) => `<span class="shot-box ${RES_CLASS[sh.res] || ''} ${k === target ? 'target' : ''}" data-shotbox="${k}"><span class="shot-no2">${k + 1}打</span><b>${esc(sh.club || '—')}</b><span class="shot-res">${esc(sh.res || '')}</span>${sh.ob ? '<span class="badge b-ob">OB</span>' : ''}${sh.pre4 ? '<span class="badge b-pre4">プレ4</span>' : ''}${sh.pen ? '<span class="badge b-pen">1ペナ</span>' : ''}${sh.isBunker ? '<span class="badge b-bunker">バンカー</span>' : ''}<button type="button" class="shot-x" data-shot="${k}">✕</button></span>`;
 
   let html = `
@@ -314,10 +330,21 @@ function bindHoleEvents(root) {
   });
 
   // ホール移動（左右ボタンのみ）。移動は保存だけして、確定はしない。
+  // 先にホール番号を境界内に収めて state へ反映してから保存する（保存後に変えると、
+  // 直後にアプリが落ちたとき移動が保存されない。処理中はボタンを無効化して連打を防ぐ）。
   const prev = root.querySelector('#hole-prev');
   const next = root.querySelector('#hole-next');
-  if (prev) prev.addEventListener('click', async () => { await saveNow().catch(() => {}); s.currentHole--; scheduleSave(); renderHole(root); });
-  if (next) next.addEventListener('click', async () => { await saveNow().catch(() => {}); s.currentHole++; scheduleSave(); renderHole(root); });
+  const moveHole = async delta => {
+    const target = clamp(s.currentHole + delta, 1, 18);
+    if (target === s.currentHole) return;
+    if (prev) prev.disabled = true;
+    if (next) next.disabled = true;
+    s.currentHole = target;
+    await saveNow().catch(() => {});
+    renderHole(root);
+  };
+  if (prev) prev.addEventListener('click', () => moveHole(-1));
+  if (next) next.addEventListener('click', () => moveHole(1));
 
   const nearpin = root.querySelector('#nearpin-sel');
   if (nearpin) nearpin.addEventListener('change', () => {
@@ -331,9 +358,11 @@ function bindHoleEvents(root) {
   const memo = root.querySelector('#hole-memo');
   if (memo) memo.addEventListener('input', () => { s.holeMemos[i] = memo.value; scheduleSave(); });
 
-  // 確定はこのボタンだけ（世代退避＋クラウド下書き）
+  // 確定はこのボタンだけ（世代退避＋クラウド下書き）。処理中の連打は無効化する。
   const confirmBtn = root.querySelector('#hole-confirm');
   if (confirmBtn) confirmBtn.addEventListener('click', async () => {
+    if (confirmBtn.disabled) return;
+    confirmBtn.disabled = true;
     // 同伴者スコアの未入力はパーで確定する（デフォルト＝パー）
     s.partners.forEach(p => { if (!p.scores[i]) p.scores[i] = s.pars[i]; });
     await rotateGeneration();
