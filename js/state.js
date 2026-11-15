@@ -41,7 +41,8 @@ export function newRoundState(setup) {
       scores: empty18(0),
       putts: empty18(null),
     })),
-    game: setup.game || null, // {type:'tomodachi', order:[names], nearpin:{H18:name}, dragon:{}}
+    order: setup.order || null, // 打順（全人数分。シャッフル/手動設定の結果）
+    game: setup.game || null, // {type:'tomodachi', order:[names], nearpin:{H3:name}, dragon:{}} ※4人のときだけ作る
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -104,6 +105,15 @@ export async function clearCurrent() {
 }
 
 // --- 集計 ---
+// ショット記録が本人のスコアの正（v0.3〜）。ショットを編集したら scores/putts/clubs を同期する。
+// バンカーは独立要素で、ここには一切含めない（打数に数えない）。
+export function syncDerived(s, i) {
+  const shots = s.shots[i] || [];
+  s.scores[i] = shots.length;
+  s.putts[i] = shots.filter(sh => sh.club === 'PT').length;
+  s.clubs[i] = shots.length ? shots[0].club : '';
+}
+
 export function holePlayed(s, i) {
   return (s.scores[i] || 0) > 0;
 }

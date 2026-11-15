@@ -51,3 +51,30 @@ input[type="text"], input[type="search"], input[type="url"], input[type="date"],
 .hole-actions button { flex: 1; }
 
 .app-version { font-size: 12px; font-weight: normal; opacity: .85; }
+
+/* v0.3: ホール画面（ショット記録方式・1画面配分） */
+.card.compact { padding: 10px; margin-bottom: 8px; }
+.card.compact h3 { margin-bottom: 6px; }
+.score-line { font-size: 15px; margin-bottom: 6px; }
+.score-line b { font-size: 19px; }
+.shots-list { display: flex; flex-wrap: wrap; gap: 4px 10px; max-height: 64px; overflow-y: auto; margin-bottom: 8px; font-size: 14px; }
+.shot-line { white-space: nowrap; }
+.shot-x { padding: 0 5px; font-size: 11px; border: none; color: #b35900; }
+.club-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 6px; }
+.club-btn { padding: 8px 0; font-size: 14px; }
+.club-btn.active { background: var(--green); color: #fff; border-color: var(--green); font-weight: bold; }
+.res-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
+.res-btn { padding: 8px 0; font-size: 14px; }
+.tomo-bar { background: #e6fcf5; border: 1px solid #63e6be; border-radius: 8px; padding: 6px 8px; font-size: 13px; margin-bottom: 8px; }
+.elem-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0; }
+.elem-row .partner-name { min-width: 72px; }
+.elem-row select { flex: 1; width: auto; }
+.mini-stepper { display: inline-flex; align-items: center; gap: 6px; }
+.mini-label { font-size: 13px; }
+.mini-btn { width: 34px; height: 34px; font-size: 17px; border-radius: 50%; padding: 0; }
+.mini-value { font-size: 17px; font-weight: bold; min-width: 20px; text-align: center; }
+.course-meta { color: #57606a; font-size: 12px; margin-left: 6px; }
+.order-list { list-style: none; padding: 0; margin: 6px 0; }
+.order-list li { margin: 4px 0; }
+.order-item { width: 100%; text-align: left; }
+.order-item.picked { background: #fff8c5; border-color: #d4a72c; }

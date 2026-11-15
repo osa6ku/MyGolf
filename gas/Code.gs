@@ -3,7 +3,7 @@
  * 本番DBには接続しない。認証なし・AccessLogなし（要件 U-10）。URLの秘匿のみで運用。
  *
  * Actions:
- *   GET  ?action=getMaster  コースマスタ全件＋メンバー一覧（Rounds の partners_json から集計）
+ *   GET  ?action=getMaster  コースマスタ全件＋メンバー一覧（Rounds の partners_json から集計）＋プレー済みコース集計
  *   GET  ?action=getDraft   最新の下書き（シート「下書き」1行保持）
  *   POST {action:"saveDraft", round_id, payload}   下書き保存
  *   POST {action:"saveRound", round:{...}}         確定保存（Rounds へ降順挿入、round_id重複チェック付き）
@@ -65,7 +65,7 @@ function getMaster_() {
       sub_courses: subs
     });
   }
-  return { ok: true, count: courses.length, courses: courses, members: getMembers_() };
+  return { ok: true, count: courses.length, courses: courses, members: getMembers_(), played: getPlayed_() };
 }
 
 /** 下書きシート（なければ作る）。 */
@@ -164,6 +164,36 @@ function saveRound_(body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * プレー済みコース：Rounds から course_id 単位で集計（回数・最終日）。
+ * アプリのコース選択は初期表示をこの一覧に絞る（全3,038件は検索時のみ）。
+ * 並びは最終日 desc → 回数 desc。
+ */
+function getPlayed_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(SHEET_ROUNDS);
+  var stats = {}; // course_id -> {course_id, name, count, last}
+  if (sh && sh.getLastRow() > 1) {
+    var values = sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues();
+    for (var r = 0; r < values.length; r++) {
+      var cid = String(values[r][2] || '');
+      if (!cid) continue;
+      var dateVal = values[r][1];
+      var dateStr = dateVal instanceof Date
+        ? Utilities.formatDate(dateVal, 'Asia/Tokyo', 'yyyy-MM-dd')
+        : String(dateVal || '');
+      if (!stats[cid]) stats[cid] = { course_id: cid, name: String(values[r][3] || ''), count: 0, last: '' };
+      stats[cid].count++;
+      if (dateStr > stats[cid].last) stats[cid].last = dateStr;
+      if (values[r][3]) stats[cid].name = String(values[r][3]);
+    }
+  }
+  return Object.keys(stats).map(function (k) { return stats[k]; }).sort(function (a, b) {
+    if (a.last !== b.last) return a.last < b.last ? 1 : -1;
+    return b.count - a.count;
+  });
 }
 
 /** MyScore 内蔵リスト（MemberMasterシートが存在しないため、履歴に無い名前の受け皿）。本人は除く。 */

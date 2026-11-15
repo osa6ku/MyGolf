@@ -19,7 +19,7 @@
 
 | action | 方式 | 内容 |
 |---|---|---|
-| getMaster | GET | Courses 全件（sub_courses_json はパース済み） |
+| getMaster | GET | Courses 全件（sub_courses_json はパース済み）＋メンバー集計＋プレー済みコース集計（Rounds から） |
 | getDraft | GET | 最新の下書き（シート「下書き」、なければ draft:null） |
 | saveDraft | POST | 下書き保存（1行保持） |
 | saveRound | POST | Rounds へ降順挿入。round_id 重複時は duplicate:true で二重登録しない |

@@ -1,5 +1,6 @@
-// ラウンド設定：コース検索・選択、条件、同伴者、ゲーム設定（打順シャッフル/手動）、端末間復元オプション
-import { searchCourses, masterCount, getMembers } from './master.js';
+// ラウンド設定：コース選択（プレー済みリスト＋新規はインクリメンタルサーチ）、条件、同伴者、打順（常時）、端末間復元オプション
+// v0.3: トモダチの使用オプションは廃止。4人なら開始時に自動でゲームを作る。打順はトモダチと無関係に常時設定する。
+import { searchCourses, getMembers, getPlayedCourses } from './master.js';
 import { newRoundState, setState, saveNow, summarize } from './state.js';
 import { fetchDraft } from './sync.js';
 import { newGame, shuffleOrder } from './game.js';
@@ -12,14 +13,14 @@ let onStart = () => {};
 export function setSetupStartHandler(fn) { onStart = fn; }
 
 export async function renderSetup(root) {
-  const count = await masterCount();
+  selectedCourse = null;
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const played = await getPlayedCourses();
   root.innerHTML = `
   <section class="card">
     <h3>コース</h3>
-    ${count === 0 ? '<p class="warn">コースマスタが未同期です。設定画面から「マスタ同期」を実行してください（GAS URL の設定が必要）。</p>' : ''}
-    <input type="search" id="course-q" placeholder="コース名・かな・略称で検索">
+    <input type="search" id="course-q" placeholder="新規コースは名前・かなで検索">
     <div id="course-results"></div>
     <div id="course-selected"></div>
   </section>
@@ -32,12 +33,13 @@ export async function renderSetup(root) {
   <section class="card">
     <h3>同伴者（最大3名）</h3>
     <div id="partner-slots"></div>
-    <label class="check"><input type="checkbox" id="f-game"> トモダチゲームを使う</label>
-    <div id="game-box" style="display:none">
-      <div class="row"><span>打順</span><button type="button" id="order-shuffle">シャッフル</button></div>
-      <ol id="order-list"></ol>
-      <p class="hint">打順は名前をタップで入れ替え（手動設定）もできます。まずシャッフルか、そのままの並びで開始できます。</p>
-    </div>
+    <p class="hint">4人そろうと、トモダチ計算を自動で行います（設定は不要です）。</p>
+  </section>
+  <section class="card">
+    <h3>打順</h3>
+    <div class="row"><span>H1の打順</span><button type="button" id="order-shuffle">シャッフル</button></div>
+    <ol id="order-list" class="order-list"></ol>
+    <p class="hint">手動で変えるときは、入れ替えたい2人を順にタップしてください。</p>
   </section>
   <section class="card">
     <h3>端末間復元（任意）</h3>
@@ -46,31 +48,31 @@ export async function renderSetup(root) {
   </section>
   <button type="button" id="start-round" class="primary" disabled>ラウンド開始</button>`;
 
+  // --- コース選択：初期表示はプレー済みリストのみ。入力したら全マスタを検索 ---
   const q = root.querySelector('#course-q');
   const results = root.querySelector('#course-results');
-  q.addEventListener('input', async () => {
+  const renderPlayed = () => {
+    if (!played.length) {
+      results.innerHTML = '<p class="hint">プレー済みコースがまだありません。上の検索から選んでください（マスタ同期が必要な場合は設定画面から）。</p>';
+      return;
+    }
+    results.innerHTML = '<p class="hint">プレー済みコース</p>' + played.map(p =>
+      `<button type="button" class="course-item" data-id="${esc(p.course_id)}">${esc(p.name)}<span class="course-meta">${p.count}回${p.last ? ` ・ 最終 ${esc(p.last)}` : ''}</span></button>`).join('');
+    bindCourseButtons(root, results);
+  };
+  const renderSearch = async () => {
     const list = await searchCourses(q.value);
     results.innerHTML = list.map(c =>
       `<button type="button" class="course-item" data-id="${esc(c.course_id)}">${esc(c.name)}</button>`).join('') || '<p>該当なし</p>';
-    results.querySelectorAll('.course-item').forEach(btn => {
-      btn.addEventListener('click', () => selectCourse(root, btn.dataset.id));
-    });
+    bindCourseButtons(root, results);
+  };
+  q.addEventListener('input', () => {
+    if (!q.value.trim()) renderPlayed();
+    else renderSearch();
   });
+  renderPlayed();
 
-  const gameCheck = root.querySelector('#f-game');
-  const gameBox = root.querySelector('#game-box');
-  gameCheck.addEventListener('change', () => {
-    gameBox.style.display = gameCheck.checked ? '' : 'none';
-    renderOrder(root);
-  });
-  root.querySelector('#order-shuffle').addEventListener('click', () => {
-    const names = playerNames(root);
-    const shuffled = shuffleOrder(names);
-    root.querySelector('#order-list').dataset.order = JSON.stringify(shuffled);
-    renderOrder(root, shuffled);
-  });
-
-  // 同伴者スロット（メンバー一覧から選択。新規はその場で入力）
+  // --- 同伴者スロット（メンバー一覧から選択。新規はその場で入力） ---
   const members = await getMembers();
   const slotsRoot = root.querySelector('#partner-slots');
   slotsRoot.innerHTML = [0, 1, 2].map(k => `
@@ -87,13 +89,23 @@ export async function renderSetup(root) {
       const input = slotsRoot.querySelector(`.partner-new[data-slot="${sel.dataset.slot}"]`);
       input.style.display = sel.value === '+新規' ? '' : 'none';
       if (sel.value === '+新規') input.focus();
-      renderOrder(root);
+      refreshOrder(root);
     });
   });
   slotsRoot.querySelectorAll('.partner-new').forEach(inp => {
-    inp.addEventListener('input', () => renderOrder(root));
+    inp.addEventListener('input', () => refreshOrder(root));
   });
 
+  // --- 打順（常時表示） ---
+  root.querySelector('#order-list').dataset.order = JSON.stringify(playerNames(root));
+  renderOrder(root);
+  root.querySelector('#order-shuffle').addEventListener('click', () => {
+    const shuffled = shuffleOrder(playerNames(root));
+    root.querySelector('#order-list').dataset.order = JSON.stringify(shuffled);
+    renderOrder(root);
+  });
+
+  // --- 端末間復元 ---
   const restoreCheck = root.querySelector('#f-restore');
   restoreCheck.addEventListener('change', async () => {
     const box = root.querySelector('#restore-box');
@@ -125,15 +137,14 @@ export async function renderSetup(root) {
     const subs = selectedCourse.sub_courses;
     const pick = name => {
       const sub = subs.find(x => x.name === name);
-      const tee = sub.tees.find(t => t.tee_name === teeName && t.green_name === greenName) || sub.tees[0];
+      const tee = (sub.tees || []).find(t => t.tee_name === teeName && t.green_name === greenName) || (sub.tees || [])[0] || { distance_per_hole: sub.pars.map(() => 0) };
       return { name: sub.name, pars: sub.pars, handicaps: sub.handicaps, yards: tee.distance_per_hole };
     };
     const partners = collectPartners(root);
-    let game = null;
-    if (gameCheck.checked) {
-      const order = JSON.parse(root.querySelector('#order-list').dataset.order || '[]');
-      game = newGame(order.length ? order : playerNames(root));
-    }
+    const order = JSON.parse(root.querySelector('#order-list').dataset.order || '[]');
+    const finalOrder = order.length ? order : playerNames(root);
+    // 4人のときだけトモダチ（自動）。打順そのものは人数によらず保持する。
+    const game = partners.length === 3 ? newGame(finalOrder) : null;
     const state = newRoundState({
       date: root.querySelector('#f-date').value,
       course_id: selectedCourse.course_id,
@@ -142,11 +153,17 @@ export async function renderSetup(root) {
       tee_name: teeName, green_name: greenName,
       weather: root.querySelector('#f-weather').value,
       wind: root.querySelector('#f-wind').value,
-      partners, game,
+      partners, game, order: finalOrder,
     });
     setState(state);
     await saveNow();
     onStart();
+  });
+}
+
+function bindCourseButtons(root, results) {
+  results.querySelectorAll('.course-item').forEach(btn => {
+    btn.addEventListener('click', () => selectCourse(root, btn.dataset.id));
   });
 }
 
@@ -167,12 +184,35 @@ function playerNames(root) {
   return ['桑木修', ...collectPartners(root)];
 }
 
-function renderOrder(root, order) {
+// 同伴者が変わったら打順を引き継ぎつつ追随させる（残っている名前の順序は維持、新規は末尾）
+function refreshOrder(root) {
   const list = root.querySelector('#order-list');
-  const names = order || JSON.parse(list.dataset.order || '[]');
-  const shown = names.length ? names : playerNames(root);
-  list.dataset.order = JSON.stringify(shown);
-  list.innerHTML = shown.map(n => `<li>${esc(n)}</li>`).join('');
+  const names = playerNames(root);
+  const prev = JSON.parse(list.dataset.order || '[]');
+  const merged = prev.filter(n => names.includes(n));
+  names.forEach(n => { if (!merged.includes(n)) merged.push(n); });
+  list.dataset.order = JSON.stringify(merged);
+  renderOrder(root);
+}
+
+let swapPick = null;
+function renderOrder(root) {
+  const list = root.querySelector('#order-list');
+  const order = JSON.parse(list.dataset.order || '[]');
+  list.innerHTML = order.map((n, i) =>
+    `<li><button type="button" class="order-item ${swapPick === i ? 'picked' : ''}" data-idx="${i}">${i + 1}. ${esc(n)}</button></li>`).join('');
+  list.querySelectorAll('.order-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.idx);
+      if (swapPick === null) { swapPick = idx; renderOrder(root); return; }
+      if (swapPick === idx) { swapPick = null; renderOrder(root); return; }
+      const cur = JSON.parse(list.dataset.order || '[]');
+      [cur[swapPick], cur[idx]] = [cur[idx], cur[swapPick]];
+      list.dataset.order = JSON.stringify(cur);
+      swapPick = null;
+      renderOrder(root);
+    });
+  });
 }
 
 async function selectCourse(root, courseId) {

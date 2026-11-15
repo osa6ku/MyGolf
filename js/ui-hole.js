@@ -1,7 +1,13 @@
-// ホール入力画面：本人（スコア/パット/番手/ショット/FW/OB/ペナ/バンカー/メモ）＋同伴者（スコア/パット）
-// 再描画はホール画面全体ではなく入力部のみ。保存は state.scheduleSave に委ねる。
-import { getState, scheduleSave, saveNow, rotateGeneration, totals } from './state.js';
+// ホール入力画面（v0.3: ショット記録方式）
+// - 本人のスコアはショット記録から自動算出（スコア/パットの直接入力は廃止）
+// - 1打の記録 = 番手タップ → 結果タップ の2タップ。PT（パター）も他の番手と同じ扱いで結果をつけられる
+// - バンカーは打数に数えない独立要素（ステッパー）。OB/ペナ/FWも独立要素
+// - 同伴者はスコアのみ（パットなし）
+// - ホール移動は左右ボタンのみ（チップ列は廃止）。移動では確定しない。確定は「ホール確定」だけ
+// - 4人のときはトモダチの組分けと対象ポイントを上部に表示する
+import { getState, scheduleSave, saveNow, rotateGeneration, totals, syncDerived } from './state.js';
 import { saveDraft } from './sync.js';
+import { calcTomodachi, tomodachiHoleText, playerList } from './game.js';
 import { DEFAULT_CLUBS, SHOT_RESULTS, FW_VALUES } from './config.js';
 
 let onNavigate = () => {};
@@ -9,89 +15,102 @@ export function setHoleNavHandler(fn) { onNavigate = fn; }
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-function stepper(label, value, min, max, dataAttrs) {
-  return `<div class="stepper">
-    <span class="stepper-label">${label}</span>
-    <button type="button" class="step-btn" data-step="-1" ${dataAttrs}>−</button>
-    <span class="step-value">${value}</span>
-    <button type="button" class="step-btn" data-step="1" ${dataAttrs}>＋</button>
-  </div>`;
+let pendingClub = '';
+let pendingHole = 0; // pendingClub が属するホール（ホールが変わったらリセット）
+
+function miniStepper(label, value, kind, extra = '') {
+  return `<span class="mini-stepper">
+    <span class="mini-label">${label}</span>
+    <button type="button" class="mini-btn" data-step="-1" data-kind="${kind}" ${extra}>−</button>
+    <span class="mini-value">${value}</span>
+    <button type="button" class="mini-btn" data-step="1" data-kind="${kind}" ${extra}>＋</button>
+  </span>`;
+}
+
+// v0.2以前の下書き（スコアだけあってショットが無いホール）をショット配列へ変換する（編集を始めたときだけ）
+function ensureShots(s, i) {
+  if ((s.shots[i] || []).length > 0) return;
+  if ((s.scores[i] || 0) <= 0) return;
+  const putts = Math.min(s.putts[i] || 0, s.scores[i]);
+  const arr = [];
+  for (let k = 0; k < s.scores[i] - putts; k++) arr.push({ club: '', res: '', isBunker: false, type: 'club' });
+  for (let k = 0; k < putts; k++) arr.push({ club: 'PT', res: '', isBunker: false, type: 'club' });
+  s.shots[i] = arr;
 }
 
 export function renderHole(root) {
   const s = getState();
   if (!s) { root.innerHTML = '<p>進行中のラウンドがありません。</p>'; return; }
   const i = s.currentHole - 1;
+  if (pendingHole !== s.currentHole) { pendingClub = ''; pendingHole = s.currentHole; }
   const t = totals(s);
   const half = i < 9 ? 0 : 1;
   const subName = s.half_names[half];
+  const shots = s.shots[i] || [];
+  const puttCount = shots.filter(sh => sh.club === 'PT').length;
+  const tomo = calcTomodachi(s);
+  const tomoHole = tomo ? tomo.perHole[i] : null;
+  const names = playerList(s).map(p => p.name);
+  const short = n => esc(String(n).replace(/\s/g, ''));
 
   let html = `
   <div class="hole-head">
     <button type="button" id="hole-prev" ${i === 0 ? 'disabled' : ''}>◀ 前</button>
     <div class="hole-title">
-      <div class="hole-name">${esc(subName)} ${i % 9 + 1}H <span class="hole-no">（通し ${s.currentHole}H）</span></div>
+      <div class="hole-name">${esc(subName)} ${i % 9 + 1}H <span class="hole-no">（${s.currentHole}H）</span></div>
       <div class="hole-meta">Par ${s.pars[i]} ・ ${s.yards[i]}y ・ Hdcp ${s.hdcp[i]}</div>
     </div>
     <button type="button" id="hole-next" ${i === 17 ? 'disabled' : ''}>次 ▶</button>
   </div>
-  <div class="hole-nav">${s.scores.map((v, h) =>
-    `<button type="button" class="hole-chip ${h === i ? 'active' : ''} ${v > 0 ? 'done' : ''}" data-hole="${h + 1}">${h + 1}</button>`).join('')}</div>
   <div class="totals-bar">OUT ${t.out_score}（${t.out_putts}） / IN ${t.in_score}（${t.in_putts}） / 合計 ${t.score} ・ パット ${t.putts}</div>
+  ${tomoHole ? `<div class="tomo-bar">
+    <div>🤝 A組 ${short(names[tomoHole.teamA[0]])}・${short(names[tomoHole.teamA[1]])} vs B組 ${short(names[tomoHole.teamB[0]])}・${short(names[tomoHole.teamB[1]])}</div>
+    <div>${esc(tomodachiHoleText(tomo, i))} ／ 本人 ${tomo.totals[0] > 0 ? '+' : ''}${tomo.totals[0]}pt</div>
+  </div>` : ''}
 
-  <section class="card">
-    <h3>本人のスコア</h3>
-    ${stepper('スコア', s.scores[i], 0, 20, `data-kind="score"`)}
-    ${stepper('パット', s.putts[i], 0, 10, `data-kind="putts"`)}
-    <div class="row">
-      <label>FW</label>
-      <div class="chip-group" id="fw-group">${FW_VALUES.map(v =>
-        `<button type="button" class="chip ${s.fw[i] === v ? 'active' : ''}" data-fw="${v}">${v}</button>`).join('')}</div>
-    </div>
-    ${stepper('OB', s.ob[i], 0, 5, `data-kind="ob"`)}
-    ${stepper('ペナ', s.pen[i], 0, 5, `data-kind="pen"`)}
-    ${stepper('バンカー', s.bunker[i], 0, 5, `data-kind="bunker"`)}
-    <div class="row">
-      <label>ティーショット番手</label>
-      <select id="tee-club">${['', ...DEFAULT_CLUBS].map(c =>
-        `<option value="${c}" ${s.clubs[i] === c ? 'selected' : ''}>${c || '—'}</option>`).join('')}</select>
-    </div>
+  <section class="card compact">
+    <div class="score-line">スコア <b>${shots.length || s.scores[i] || 0}</b> ・ パット <b>${shots.length ? puttCount : (s.putts[i] || 0)}</b>
+      <span class="hint">番手→結果の2タップで1打追加</span></div>
+    <div class="shots-list">${shots.map((sh, k) =>
+      `<span class="shot-line">${k + 1}打 ${esc(sh.club || '—')} ${esc(sh.res || '')}<button type="button" class="shot-x" data-shot="${k}">✕</button></span>`).join('') || '<span class="hint">まだショットがありません</span>'}</div>
+    <div class="club-grid">${DEFAULT_CLUBS.map(c =>
+      `<button type="button" class="club-btn ${pendingClub === c ? 'active' : ''}" data-club="${c}">${c}</button>`).join('')}</div>
+    <div class="res-grid">${SHOT_RESULTS.filter(r => r !== '').map(r =>
+      `<button type="button" class="res-btn" data-res="${r}">${r}</button>`).join('')}
+      <button type="button" class="res-btn" data-res="">なし</button></div>
+    <div id="shot-msg" class="warn" style="display:none">まず番手を選んでください</div>
   </section>
 
-  <section class="card">
-    <h3>ショット記録</h3>
-    <div id="shots">
-      ${s.shots[i].map((sh, k) => `
-      <div class="shot-row" data-shot="${k}">
-        <span class="shot-no">${k + 1}打</span>
-        <select class="shot-club">${DEFAULT_CLUBS.map(c =>
-          `<option value="${c}" ${sh.club === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
-        <select class="shot-res">${SHOT_RESULTS.map(r =>
-          `<option value="${r}" ${sh.res === r ? 'selected' : ''}>${r || '結果'}</option>`).join('')}</select>
-        <button type="button" class="shot-del" data-shot="${k}">✕</button>
-      </div>`).join('')}
+  <section class="card compact">
+    <div class="elem-row">
+      <span class="mini-label">FW</span>
+      <span class="chip-group" id="fw-group">${FW_VALUES.map(v =>
+        `<button type="button" class="chip ${s.fw[i] === v ? 'active' : ''}" data-fw="${v}">${v}</button>`).join('')}</span>
     </div>
-    <div class="row">
-      <button type="button" id="shot-add">＋ ショット追加</button>
-      <button type="button" id="shot-bunker">バンカー追加</button>
-      <button type="button" id="shot-ob">OB追加</button>
-      <button type="button" id="shot-pre4">プレ4追加</button>
+    <div class="elem-row">
+      ${miniStepper('OB', s.ob[i], 'ob')}
+      ${miniStepper('ペナ', s.pen[i], 'pen')}
+      ${miniStepper('バンカー', s.bunker[i], 'bunker')}
     </div>
+    ${s.pars[i] === 3 && s.game ? `<div class="elem-row">
+      <span class="mini-label">ニアピン</span>
+      <select id="nearpin-sel">
+        <option value="">なし</option>
+        ${names.map(n => `<option value="${esc(n)}" ${s.game.nearpin['H' + (i + 1)] === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}
+      </select>
+    </div>` : ''}
   </section>
 
-  <section class="card">
-    <h3>同伴者</h3>
+  ${s.partners.length ? `<section class="card compact">
     ${s.partners.map((p, pi) => `
-    <div class="partner-row">
+    <div class="elem-row">
       <span class="partner-name">${esc(p.name)}</span>
-      ${stepper('スコア', p.scores[i], 0, 20, `data-kind="p-score" data-partner="${pi}"`)}
-      ${stepper('パット', p.putts[i] ?? 0, 0, 10, `data-kind="p-putts" data-partner="${pi}"`)}
-    </div>`).join('') || '<p>同伴者なし</p>'}
-  </section>
+      ${miniStepper('スコア', p.scores[i], 'p-score', `data-partner="${pi}"`)}
+    </div>`).join('')}
+  </section>` : ''}
 
-  <section class="card">
-    <h3>ホールメモ</h3>
-    <textarea id="hole-memo" rows="2" placeholder="このホールのメモ">${esc(s.holeMemos[i])}</textarea>
+  <section class="card compact">
+    <textarea id="hole-memo" rows="1" placeholder="ホールメモ">${esc(s.holeMemos[i])}</textarea>
   </section>
 
   <div class="hole-actions">
@@ -106,32 +125,54 @@ export function renderHole(root) {
 function bindHoleEvents(root) {
   const s = getState();
   const i = s.currentHole - 1;
+  const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
+  // 番手 → 結果 の2タップで1打追加
+  root.querySelectorAll('.club-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      pendingClub = pendingClub === btn.dataset.club ? '' : btn.dataset.club;
+      root.querySelectorAll('.club-btn').forEach(b => b.classList.toggle('active', b.dataset.club === pendingClub));
+    });
+  });
+  root.querySelectorAll('.res-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!pendingClub) {
+        const msg = root.querySelector('#shot-msg');
+        if (msg) { msg.style.display = ''; setTimeout(() => { msg.style.display = 'none'; }, 1500); }
+        return;
+      }
+      ensureShots(s, i);
+      s.shots[i].push({ club: pendingClub, res: btn.dataset.res, isBunker: false, type: 'club' });
+      syncDerived(s, i);
+      scheduleSave();
+      renderHole(root);
+    });
+  });
+  root.querySelectorAll('.shot-x').forEach(btn => {
+    btn.addEventListener('click', () => {
+      ensureShots(s, i);
+      s.shots[i].splice(Number(btn.dataset.shot), 1);
+      syncDerived(s, i);
+      scheduleSave();
+      renderHole(root);
+    });
+  });
+
+  // 独立要素（OB/ペナ/バンカー）と同伴者スコア
   root.querySelectorAll('[data-step]').forEach(btn => {
     btn.addEventListener('click', () => {
       const d = Number(btn.dataset.step);
       const kind = btn.dataset.kind;
-      const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
-      if (kind === 'score') s.scores[i] = clamp((s.scores[i] || 0) + d, 0, 20);
-      else if (kind === 'putts') s.putts[i] = clamp((s.putts[i] || 0) + d, 0, 10);
-      else if (kind === 'ob') s.ob[i] = clamp((s.ob[i] || 0) + d, 0, 5);
+      if (kind === 'ob') s.ob[i] = clamp((s.ob[i] || 0) + d, 0, 5);
       else if (kind === 'pen') s.pen[i] = clamp((s.pen[i] || 0) + d, 0, 5);
       else if (kind === 'bunker') s.bunker[i] = clamp((s.bunker[i] || 0) + d, 0, 5);
       else if (kind === 'p-score') { const p = s.partners[Number(btn.dataset.partner)]; p.scores[i] = clamp((p.scores[i] || 0) + d, 0, 20); }
-      else if (kind === 'p-putts') { const p = s.partners[Number(btn.dataset.partner)]; p.putts[i] = clamp((p.putts[i] || 0) + d, 0, 10); }
       scheduleSave();
       renderHole(root);
     });
   });
 
-  root.querySelectorAll('.hole-chip').forEach(chip => {
-    chip.addEventListener('click', async () => {
-      await saveNow().catch(() => {});
-      s.currentHole = Number(chip.dataset.hole);
-      scheduleSave();
-      renderHole(root);
-    });
-  });
+  // ホール移動（左右ボタンのみ）。移動は保存だけして、確定はしない。
   const prev = root.querySelector('#hole-prev');
   const next = root.querySelector('#hole-next');
   if (prev) prev.addEventListener('click', async () => { await saveNow().catch(() => {}); s.currentHole--; scheduleSave(); renderHole(root); });
@@ -145,36 +186,24 @@ function bindHoleEvents(root) {
     });
   });
 
-  const teeClub = root.querySelector('#tee-club');
-  if (teeClub) teeClub.addEventListener('change', () => { s.clubs[i] = teeClub.value; scheduleSave(); });
-
-  const shotsRoot = root.querySelector('#shots');
-  if (shotsRoot) {
-    shotsRoot.querySelectorAll('.shot-row').forEach(row => {
-      const k = Number(row.dataset.shot);
-      row.querySelector('.shot-club').addEventListener('change', e => { s.shots[i][k].club = e.target.value; scheduleSave(); });
-      row.querySelector('.shot-res').addEventListener('change', e => { s.shots[i][k].res = e.target.value; scheduleSave(); });
-      row.querySelector('.shot-del').addEventListener('click', () => { s.shots[i].splice(k, 1); scheduleSave(); renderHole(root); });
-    });
-  }
-  const addShot = (shot) => { s.shots[i].push(shot); scheduleSave(); renderHole(root); };
-  const addBtn = root.querySelector('#shot-add');
-  if (addBtn) addBtn.addEventListener('click', () => addShot({ club: s.clubs[i] || '1W', res: '', isBunker: false, type: 'club' }));
-  const bkBtn = root.querySelector('#shot-bunker');
-  if (bkBtn) bkBtn.addEventListener('click', () => addShot({ club: 'バンカー', res: '', isBunker: true, type: 'bunker' }));
-  const obBtn = root.querySelector('#shot-ob');
-  if (obBtn) obBtn.addEventListener('click', () => addShot({ club: 'OB', res: '', isBunker: false, type: 'ob' }));
-  const pre4Btn = root.querySelector('#shot-pre4');
-  if (pre4Btn) pre4Btn.addEventListener('click', () => addShot({ club: 'プレ4', res: '', isBunker: false, type: 'pre4' }));
+  const nearpin = root.querySelector('#nearpin-sel');
+  if (nearpin) nearpin.addEventListener('change', () => {
+    if (!s.game) return;
+    if (nearpin.value) s.game.nearpin['H' + (i + 1)] = nearpin.value;
+    else delete s.game.nearpin['H' + (i + 1)];
+    scheduleSave();
+    renderHole(root);
+  });
 
   const memo = root.querySelector('#hole-memo');
   if (memo) memo.addEventListener('input', () => { s.holeMemos[i] = memo.value; scheduleSave(); });
 
+  // 確定はこのボタンだけ（世代退避＋クラウド下書き）
   const confirmBtn = root.querySelector('#hole-confirm');
   if (confirmBtn) confirmBtn.addEventListener('click', async () => {
-    await rotateGeneration();          // 現世代を prev に退避
-    await saveNow().catch(() => {});    // 確定内容を current に保存
-    saveDraft(s).catch(() => {});       // クラウド下書き（失敗しても止めない）
+    await rotateGeneration();
+    await saveNow().catch(() => {});
+    saveDraft(s).catch(() => {});
     if (s.currentHole < 18) { s.currentHole++; scheduleSave(); }
     renderHole(root);
   });

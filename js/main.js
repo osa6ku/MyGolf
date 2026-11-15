@@ -6,6 +6,7 @@ import { gasUrl, setGasUrl, pendingList, flushPending, queuePending, saveRoundNo
 import { syncMaster, masterCount, getMembers } from './master.js';
 import { renderSetup, setSetupStartHandler } from './ui-setup.js';
 import { renderHole, setHoleNavHandler } from './ui-hole.js';
+import { calcTomodachi } from './game.js';
 import { renderRestore, setRestoreHandler } from './ui-restore.js';
 import { exportRoundJson } from './export.js';
 
@@ -83,6 +84,7 @@ function renderFinish() {
         }).join('')}
       </table>
       <p>OB ${t.ob} / ペナ ${t.pen} / バンカー ${t.bunker} / FWキープ率 ${t.fw_rate}%</p>
+      ${(() => { const tomo = calcTomodachi(s); return tomo ? `<p>🤝 トモダチ：${tomo.players.map((n, ix) => `${esc(n)} ${tomo.totals[ix] > 0 ? '+' : ''}${tomo.totals[ix]}pt`).join(' ／ ')}</p>` : ''; })()}
       <button type="button" class="primary" id="save-round-btn">確定保存する</button>
       <button type="button" id="export-btn">JSON書き出し</button>
       <button type="button" id="back-hole-btn">ホール入力に戻る</button>
@@ -138,7 +140,7 @@ async function renderSettings() {
     msg.textContent = '同期中…';
     try {
       const n = await syncMaster();
-      msg.textContent = `コース ${n.courses} 件 / メンバー ${n.members} 名を同期しました。`;
+      msg.textContent = `コース ${n.courses} 件 / メンバー ${n.members} 名 / プレー済み ${n.played} コースを同期しました。`;
       const mc = document.querySelector('#master-count');
       if (mc) mc.textContent = `コース現在 ${n.courses} 件 / メンバー ${n.members} 名`;
     } catch (err) {
