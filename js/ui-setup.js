@@ -9,6 +9,7 @@ import { WEATHERS, WINDS } from './config.js';
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 let selectedCourse = null;
+let playedOpen = false; // プレー済みコース一覧の開閉（既定は先頭だけ表示）
 let onStart = () => {};
 export function setSetupStartHandler(fn) { onStart = fn; }
 
@@ -17,6 +18,7 @@ export async function renderSetup(root) {
   const cur = getState();
   if (cur) { await renderCurrentSetup(root, cur); return; }
   selectedCourse = null;
+  playedOpen = false;
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const played = await getPlayedCourses();
@@ -59,7 +61,15 @@ export async function renderSetup(root) {
       results.innerHTML = '<p class="hint">プレー済みコースがまだありません。上の検索から選んでください（マスタ同期が必要な場合は設定画面から）。</p>';
       return;
     }
-    results.innerHTML = '<p class="hint">プレー済みコース</p>' + played.map(p =>
+    const sorted = [...played].sort((a, b) => (b.count - a.count) || String(b.last || '').localeCompare(String(a.last || '')));
+    if (!playedOpen) {
+      const p = sorted[0];
+      results.innerHTML = '<p class="hint">プレー済みコース（回数が多い順・タップで一覧表示）</p>' +
+        `<button type="button" class="course-item one-line" id="played-toggle"><span class="ci-row"><span class="ci-name">${esc(p.name)}</span><span class="course-meta">${p.count}回${p.last ? ` ・ ${esc(p.last)}` : ''} ▾</span></span></button>`;
+      results.querySelector('#played-toggle').addEventListener('click', () => { playedOpen = true; renderPlayed(); });
+      return;
+    }
+    results.innerHTML = '<p class="hint">プレー済みコース（回数が多い順）</p>' + sorted.map(p =>
       `<button type="button" class="course-item one-line" data-id="${esc(p.course_id)}"><span class="ci-row"><span class="ci-name">${esc(p.name)}</span><span class="course-meta">${p.count}回${p.last ? ` ・ ${esc(p.last)}` : ''}</span></span></button>`).join('');
     bindCourseButtons(root, results);
   };
@@ -77,6 +87,7 @@ export async function renderSetup(root) {
 
   // --- 同伴者スロット（メンバー一覧から選択。新規はその場で入力） ---
   const members = await getMembers();
+  members.sort((a, b) => (b.count || 0) - (a.count || 0)); // 共回数が多い順
   const slotsRoot = root.querySelector('#partner-slots');
   slotsRoot.innerHTML = [0, 1, 2].map(k => `
     <div class="row">
@@ -261,8 +272,10 @@ async function selectCourse(root, courseId, preset) {
 // 変更は現在の世代だけでなく、バックアップ世代（prev）とクラウド下書きにも上書きする。
 async function renderCurrentSetup(root, s) {
   selectedCourse = null;
+  playedOpen = false;
   const played = await getPlayedCourses();
   const members = await getMembers();
+  members.sort((a, b) => (b.count || 0) - (a.count || 0)); // 共回数が多い順
   root.innerHTML = `
   <section class="card">
     <h3>現在のラウンド設定</h3>
@@ -299,7 +312,15 @@ async function renderCurrentSetup(root, s) {
       results.innerHTML = '<p class="hint">プレー済みコースがまだありません。上の検索から選んでください。</p>';
       return;
     }
-    results.innerHTML = '<p class="hint">プレー済みコース</p>' + played.map(p =>
+    const sorted = [...played].sort((a, b) => (b.count - a.count) || String(b.last || '').localeCompare(String(a.last || '')));
+    if (!playedOpen) {
+      const p = sorted[0];
+      results.innerHTML = '<p class="hint">プレー済みコース（回数が多い順・タップで一覧表示）</p>' +
+        `<button type="button" class="course-item one-line" id="played-toggle"><span class="ci-row"><span class="ci-name">${esc(p.name)}</span><span class="course-meta">${p.count}回${p.last ? ` ・ ${esc(p.last)}` : ''} ▾</span></span></button>`;
+      results.querySelector('#played-toggle').addEventListener('click', () => { playedOpen = true; renderPlayed(); });
+      return;
+    }
+    results.innerHTML = '<p class="hint">プレー済みコース（回数が多い順）</p>' + sorted.map(p =>
       `<button type="button" class="course-item one-line" data-id="${esc(p.course_id)}"><span class="ci-row"><span class="ci-name">${esc(p.name)}</span><span class="course-meta">${p.count}回${p.last ? ` ・ ${esc(p.last)}` : ''}</span></span></button>`).join('');
     bindCourseButtons(root, results);
   };

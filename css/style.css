@@ -182,3 +182,9 @@ html, body, button { touch-action: manipulation; }
 .hole-pick.done { border-color: var(--green); }
 .hole-pick.cur { background: var(--green); color: #fff; border-color: var(--green); }
 .hole-pick.cur .hp-sub { color: #e6f4ea; }
+
+/* v0.4.4: コース項目をホール選択ボタン風に（枠＋色） */
+.course-item.one-line { border: 1.5px solid #9bbb59; background: #f2f8f2; color: #1f2328; border-radius: 8px; }
+.course-item.one-line .ci-name { font-weight: bold; color: #1f2328; }
+.course-item.one-line .course-meta { color: #57606a; }
+.course-item.one-line:active { background: #dff2e3; }
