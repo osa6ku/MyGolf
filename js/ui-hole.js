@@ -222,12 +222,13 @@ function buildHolePickerModal(s) {
   const btn = h => {
     const played = (s.scores[h] || 0) > 0;
     const cur = s.currentHole === h + 1;
-    return `<button type="button" class="hole-pick ${cur ? 'cur' : ''} ${played ? 'done' : ''}" data-hole="${h + 1}"><span class="hp-no">${h + 1}H</span><span class="hp-sub">Par${s.pars[h]}${played ? ` ・ ${s.scores[h]}打 ✓` : ''}</span></button>`;
+    const hasMemo = !!(s.strategies[h] && String(s.strategies[h]).trim());
+    return `<button type="button" class="hole-pick ${cur ? 'cur' : ''} ${played ? 'done' : ''}" data-hole="${h + 1}"><span class="hp-no">${h + 1}H</span><span class="hp-sub">Par${s.pars[h]}${played ? ` ・ ${s.scores[h]}打 ✓` : ''}${hasMemo ? ' ・ 📖' : ''}</span></button>`;
   };
   const cells = Array.from({ length: 18 }, (_, h) => btn(h)).join('');
   return `<div class="modal-overlay" id="modal-overlay"><div class="modal-box">
     <h3>ホール選択（移動だけでは確定しません）</h3>
-    <p class="hint">緑＝入力済み ／ 濃緑＝現在のホール ／ グレー＝未入力</p>
+    <p class="hint">緑＝入力済み ／ 濃緑＝現在のホール ／ グレー＝未入力 ／ 📖＝攻略メモあり</p>
     <div class="hole-pick-grid">${cells}</div>
     ${st ? `<div class="strategy-box"><h4>📖 ${s.currentHole}H 攻略メモ</h4><p>${esc(st)}</p></div>` : ''}
     <button type="button" class="primary modal-close">閉じる</button>
