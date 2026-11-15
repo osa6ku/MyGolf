@@ -124,7 +124,7 @@ async function renderSettings() {
     </div>
     <div class="card">
       <h3>コースマスタ</h3>
-      <p>コース現在 ${await masterCount()} 件 / メンバー ${(await getMembers()).length} 名</p>
+      <p id="master-count">コース現在 ${await masterCount()} 件 / メンバー ${(await getMembers()).length} 名</p>
       <button type="button" id="master-sync">マスタ同期</button>
       <p id="master-msg"></p>
     </div>
@@ -139,6 +139,8 @@ async function renderSettings() {
     try {
       const n = await syncMaster();
       msg.textContent = `コース ${n.courses} 件 / メンバー ${n.members} 名を同期しました。`;
+      const mc = document.querySelector('#master-count');
+      if (mc) mc.textContent = `コース現在 ${n.courses} 件 / メンバー ${n.members} 名`;
     } catch (err) {
       msg.textContent = `失敗：${err.message || err}`;
     }
