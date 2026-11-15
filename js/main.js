@@ -147,9 +147,10 @@ async function renderSettings() {
     msg.textContent = '同期中…';
     try {
       const n = await syncMaster();
-      msg.textContent = `コース ${n.courses} 件 / メンバー ${n.members} 名 / プレー済み ${n.played} コースを同期しました。`;
+      const playedMerged = (await getPlayedCourses()).length; // 名寄せ後の件数で表示を統一する
+      msg.textContent = `コース ${n.courses} 件 / メンバー ${n.members} 名 / プレー済み ${playedMerged} コースを同期しました。`;
       const mc = document.querySelector('#master-count');
-      if (mc) mc.textContent = `コース現在 ${n.courses} 件 / メンバー ${n.members} 名 / プレー済み ${n.played} コース`;
+      if (mc) mc.textContent = `コース現在 ${n.courses} 件 / メンバー ${n.members} 名 / プレー済み ${playedMerged} コース`;
     } catch (err) {
       msg.textContent = `失敗：${err.message || err}`;
     }

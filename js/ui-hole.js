@@ -363,9 +363,11 @@ function bindHoleEvents(root) {
   if (confirmBtn) confirmBtn.addEventListener('click', async () => {
     if (confirmBtn.disabled) return;
     confirmBtn.disabled = true;
+    // 未保存の編集を先に current へ書き切ってから世代退避する（prev が「確定直前の状態」と一致するように）
+    await saveNow().catch(() => {});
+    await rotateGeneration();
     // 同伴者スコアの未入力はパーで確定する（デフォルト＝パー）
     s.partners.forEach(p => { if (!p.scores[i]) p.scores[i] = s.pars[i]; });
-    await rotateGeneration();
     await saveNow().catch(() => {});
     saveDraft(s).catch(() => {});
     if (s.currentHole < 18) { s.currentHole++; scheduleSave(); }

@@ -167,27 +167,31 @@ function saveRound_(body) {
 }
 
 /**
- * プレー済みコース：Rounds から course_id 単位で集計（回数・最終日）。
+ * プレー済みコース：Rounds から (course_id, 名前) のペア単位で集計（回数・最終日）。
+ * 元データには「同じ course_id に別のコース名が付いた行」が混在する（例：レイクランドの行が
+ * 鹿沼72の ID を持つ）。ID単位で名前を上書きすると別コースに化けるため、ペアで返し、
+ * 名前→ID の引き直しと合算はアプリ側（getPlayedCourses）が行う。
  * アプリのコース選択は初期表示をこの一覧に絞る（全3,038件は検索時のみ）。
  * 並びは最終日 desc → 回数 desc。
  */
 function getPlayed_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(SHEET_ROUNDS);
-  var stats = {}; // course_id -> {course_id, name, count, last}
+  var stats = {}; // (course_id + '|' + name) -> {course_id, name, count, last}
   if (sh && sh.getLastRow() > 1) {
     var values = sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues();
     for (var r = 0; r < values.length; r++) {
       var cid = String(values[r][2] || '');
       if (!cid) continue;
+      var name = String(values[r][3] || '');
       var dateVal = values[r][1];
       var dateStr = dateVal instanceof Date
         ? Utilities.formatDate(dateVal, 'Asia/Tokyo', 'yyyy-MM-dd')
         : String(dateVal || '');
-      if (!stats[cid]) stats[cid] = { course_id: cid, name: String(values[r][3] || ''), count: 0, last: '' };
-      stats[cid].count++;
-      if (dateStr > stats[cid].last) stats[cid].last = dateStr;
-      if (values[r][3]) stats[cid].name = String(values[r][3]);
+      var key = cid + '|' + name;
+      if (!stats[key]) stats[key] = { course_id: cid, name: name, count: 0, last: '' };
+      stats[key].count++;
+      if (dateStr > stats[key].last) stats[key].last = dateStr;
     }
   }
   return Object.keys(stats).map(function (k) { return stats[k]; }).sort(function (a, b) {
