@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MyGolf</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icon.svg">
+<meta name="theme-color" content="#1a7f37">
+<link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+<header>
+  <h1>MyGolf</h1>
+  <span id="save-status" class="save-status"></span>
+</header>
+<div id="save-banner" class="banner" style="display:none"></div>
+
+<main>
+  <section id="screen-home" class="screen">
+    <div id="home-body"></div>
+  </section>
+
+  <section id="screen-setup" class="screen" style="display:none"></section>
+
+  <section id="screen-hole" class="screen" style="display:none"></section>
+
+  <section id="screen-finish" class="screen" style="display:none">
+    <div id="finish-body"></div>
+  </section>
+
+  <section id="screen-restore" class="screen" style="display:none"></section>
+
+  <section id="screen-settings" class="screen" style="display:none">
+    <div id="settings-body"></div>
+  </section>
+</main>
+
+<nav class="tabbar">
+  <button type="button" data-nav="home">ホーム</button>
+  <button type="button" data-nav="setup">新規</button>
+  <button type="button" data-nav="hole">入力</button>
+  <button type="button" data-nav="restore">復元</button>
+  <button type="button" data-nav="settings">設定</button>
+</nav>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
