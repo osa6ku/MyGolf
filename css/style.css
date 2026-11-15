@@ -1,0 +1,51 @@
+:root { --green: #1a7f37; --border: #d0d7de; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: -apple-system, "Hiragino Sans", sans-serif; background: #f6f8fa; color: #1f2328; padding-bottom: 64px; }
+header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--green); color: #fff; position: sticky; top: 0; z-index: 10; }
+header h1 { font-size: 18px; margin: 0; }
+.save-status { font-size: 12px; opacity: .9; }
+.banner { background: #fff8c5; border-bottom: 1px solid #d4a72c; padding: 8px 14px; font-size: 13px; }
+main { padding: 10px; max-width: 640px; margin: 0 auto; }
+.card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.card h3 { margin: 0 0 8px; font-size: 15px; }
+button { font-size: 15px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+button.primary { background: var(--green); color: #fff; border-color: var(--green); }
+button.big { width: 100%; margin: 4px 0; padding: 12px; }
+button:disabled { opacity: .4; }
+input[type="text"], input[type="search"], input[type="url"], input[type="date"], select, textarea { font-size: 16px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; width: 100%; margin: 4px 0; }
+.row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.row label { min-width: 64px; font-size: 14px; }
+.row select, .row input { flex: 1; }
+.check { display: flex; align-items: center; gap: 6px; margin: 8px 0; }
+.hint { font-size: 12px; color: #57606a; }
+.warn { color: #b35900; font-size: 13px; }
+.course-item { display: block; width: 100%; text-align: left; margin: 4px 0; }
+.selected-course { font-weight: bold; }
+.tabbar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; background: #fff; border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); }
+.tabbar button { flex: 1; border: none; border-radius: 0; padding: 12px 0; background: #fff; }
+.hole-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.hole-title { text-align: center; }
+.hole-name { font-size: 18px; font-weight: bold; }
+.hole-no { font-size: 12px; color: #57606a; }
+.hole-meta { font-size: 13px; color: #57606a; }
+.hole-nav { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.hole-chip { width: 34px; height: 34px; padding: 0; border-radius: 50%; font-size: 13px; }
+.hole-chip.active { background: var(--green); color: #fff; }
+.hole-chip.done { border-color: var(--green); font-weight: bold; }
+.totals-bar { background: #eef4ee; border-radius: 8px; padding: 8px; font-size: 14px; text-align: center; margin-bottom: 12px; }
+.stepper { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.stepper-label { min-width: 56px; font-size: 14px; }
+.step-btn { width: 44px; height: 44px; font-size: 20px; border-radius: 50%; }
+.step-value { font-size: 20px; font-weight: bold; min-width: 28px; text-align: center; }
+.chip-group { display: flex; gap: 6px; }
+.chip { padding: 6px 12px; border-radius: 16px; }
+.chip.active { background: var(--green); color: #fff; }
+.shot-row { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+.shot-row select { flex: 1; }
+.shot-no { font-size: 13px; min-width: 32px; }
+.partner-row { border-top: 1px dashed var(--border); padding-top: 6px; }
+.partner-name { font-weight: bold; }
+.score-table { width: 100%; border-collapse: collapse; }
+.score-table th, .score-table td { border: 1px solid var(--border); padding: 6px; text-align: center; }
+.hole-actions { display: flex; gap: 8px; }
+.hole-actions button { flex: 1; }
