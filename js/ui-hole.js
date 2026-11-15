@@ -74,8 +74,8 @@ export function renderHole(root) {
   let html = `
   <div class="hole-head">
     <button type="button" id="hole-prev" ${i === 0 ? 'disabled' : ''}>◀ 前</button>
-    <div class="hole-title">
-      <div class="hole-name">${esc(subName)} ${i % 9 + 1}H <span class="hole-no">（${s.currentHole}H）</span></div>
+    <div class="hole-title" id="hole-title">
+      <div class="hole-name">${esc(subName)} ${i % 9 + 1}H <span class="hole-no">（${s.currentHole}H）</span> <span class="hole-pick-mark">▾</span></div>
       <div class="hole-meta">Par ${s.pars[i]} ・ ${s.yards[i]}y ・ Hdcp ${s.hdcp[i]}</div>
     </div>
     <button type="button" id="hole-next" ${i === 17 ? 'disabled' : ''}>次 ▶</button>
@@ -130,7 +130,8 @@ export function renderHole(root) {
   </div>
   ${modalOpen === 'score' ? buildScoreModal(s) : ''}
   ${modalOpen === 'tomo' && tomo ? buildTomoModal(s, tomo) : ''}
-  ${modalOpen === 'strategy' ? buildStrategyModal(s, i, strategy) : ''}`;
+  ${modalOpen === 'strategy' ? buildStrategyModal(s, i, strategy) : ''}
+  ${modalOpen === 'holes' ? buildHolePickerModal(s) : ''}`;
 
   root.innerHTML = html;
   bindHoleEvents(root);
@@ -212,6 +213,20 @@ function buildTomoModal(s, tomo) {
     ${scorecardHead(s, 'トモダチ')}
     <div class="sc-wrap"><table class="scorecard">${scHeaderRow()}${tomo.players.map((n, pi) => ptRow(n, pi)).join('')}</table></div>
     <div class="tomo-lines">ニアピン獲得者：${npHtml}</div>
+    <button type="button" class="primary modal-close">閉じる</button>
+  </div></div>`;
+}
+
+function buildHolePickerModal(s) {
+  const btn = h => {
+    const played = (s.scores[h] || 0) > 0;
+    const cur = s.currentHole === h + 1;
+    return `<button type="button" class="hole-pick ${cur ? 'cur' : ''} ${played ? 'done' : ''}" data-hole="${h + 1}"><span class="hp-no">${h + 1}H</span><span class="hp-sub">Par${s.pars[h]}${played ? ` ・ ${s.scores[h]}` : ''}</span></button>`;
+  };
+  const cells = Array.from({ length: 18 }, (_, h) => btn(h)).join('');
+  return `<div class="modal-overlay" id="modal-overlay"><div class="modal-box">
+    <h3>ホール選択（移動だけでは確定しません）</h3>
+    <div class="hole-pick-grid">${cells}</div>
     <button type="button" class="primary modal-close">閉じる</button>
   </div></div>`;
 }
@@ -334,6 +349,18 @@ function bindHoleEvents(root) {
 
   const finishBtn = root.querySelector('#go-finish');
   if (finishBtn) finishBtn.addEventListener('click', () => onNavigate('finish'));
+
+  // ホール名タップでホール選択モーダル（移動だけ。確定はしない）
+  const holeTitle = root.querySelector('#hole-title');
+  if (holeTitle) holeTitle.addEventListener('click', () => { modalOpen = 'holes'; renderHole(root); });
+  root.querySelectorAll('[data-hole]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      modalOpen = null;
+      s.currentHole = Number(btn.dataset.hole);
+      await saveNow().catch(() => {});
+      renderHole(root);
+    });
+  });
 
   // 攻略メモボタン：モーダルで全文表示
   const strategyBtn = root.querySelector('#open-strategy');

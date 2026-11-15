@@ -167,3 +167,18 @@ table.scorecard tr.sc-par td { color: #57606a; background: #fafafa; }
 .mod-row { flex-wrap: nowrap; }
 .mod-row .mini-label { flex-shrink: 0; font-size: 12px; }
 .mod-btn { font-size: 12px; padding: 6px 7px; white-space: nowrap; }
+
+/* v0.4.3: ダブルタップズーム無効化／コース1行リストの内側レイアウト／ホール選択モーダル */
+html, body, button { touch-action: manipulation; }
+.course-item.one-line { display: block; }
+.course-item.one-line .ci-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.course-item.one-line .ci-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hole-title { cursor: pointer; }
+.hole-pick-mark { font-size: 11px; color: #57606a; }
+.hole-pick-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.hole-pick { padding: 6px 2px; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.hole-pick .hp-no { font-size: 13px; font-weight: bold; }
+.hole-pick .hp-sub { font-size: 10px; color: #57606a; }
+.hole-pick.done { border-color: var(--green); }
+.hole-pick.cur { background: var(--green); color: #fff; border-color: var(--green); }
+.hole-pick.cur .hp-sub { color: #e6f4ea; }
