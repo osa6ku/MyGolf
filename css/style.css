@@ -49,3 +49,5 @@ input[type="text"], input[type="search"], input[type="url"], input[type="date"],
 .score-table th, .score-table td { border: 1px solid var(--border); padding: 6px; text-align: center; }
 .hole-actions { display: flex; gap: 8px; }
 .hole-actions button { flex: 1; }
+
+.app-version { font-size: 12px; font-weight: normal; opacity: .85; }

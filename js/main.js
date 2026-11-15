@@ -1,5 +1,6 @@
 // MyGolf 起動・画面遷移・Service Worker 登録
 import { openDb, getMeta } from './db.js';
+import { APP_VERSION } from './config.js';
 import { getState, setState, loadCurrent, saveNow, totals, toRoundRecord, clearCurrent, summarize } from './state.js';
 import { gasUrl, setGasUrl, pendingList, flushPending, queuePending, saveRoundNow } from './sync.js';
 import { syncMaster, masterCount, getMembers } from './master.js';
@@ -145,6 +146,8 @@ async function renderSettings() {
 }
 
 async function init() {
+  const verEl = document.querySelector('#app-version');
+  if (verEl) verEl.textContent = 'v' + APP_VERSION;
   await openDb();
   if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persist().catch(() => {});
