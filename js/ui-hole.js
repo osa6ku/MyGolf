@@ -8,7 +8,7 @@
 // - 4人のときはトモダチの組分けと対象ポイントを上部に表示する
 import { getState, scheduleSave, saveNow, rotateGeneration, totals, syncDerived } from './state.js';
 import { saveDraft } from './sync.js';
-import { calcTomodachi, tomodachiHoleText, playerList } from './game.js';
+import { calcTomodachi, playerList } from './game.js';
 import { DEFAULT_CLUBS, SHOT_RESULTS } from './config.js';
 
 let onNavigate = () => {};
@@ -54,7 +54,14 @@ export function renderHole(root) {
   const tomo = calcTomodachi(s);
   const tomoHole = tomo ? tomo.perHole[i] : null;
   const names = playerList(s).map(p => p.name);
-  const short = n => esc(String(n).replace(/\s/g, ''));
+  const n2 = n => esc(String(n).replace(/\s/g, '').slice(0, 2)); // トモダチ表示は名前2文字
+  const tomoShort = (tomo, hi) => {
+    const r = tomo.perHole[hi];
+    if (!r) return '';
+    if (!r.complete) return r.carryIn > 0 ? `対象${r.bet}pt（持越+${r.carryIn}）` : `対象${r.bet}pt`;
+    if (r.winner === 'TIE') return hi === 17 ? '引分' : `引分 持越+${r.bet}pt`;
+    return `${r.winner}組勝ち +${r.bet}pt`;
+  };
 
   const strategy = ((s.strategies && s.strategies[i]) || '').replace(/\s+/g, ' ').trim();
   // 付随記録の対象ショット（選択中がなければ最後のショット）
@@ -75,7 +82,7 @@ export function renderHole(root) {
   </div>
   <button type="button" id="open-strategy" class="strategy-btn">📖 攻略メモ${strategy ? '' : '（このホールは未登録）'}</button>
   <div class="totals-bar">OUT ${t.out_score}（${t.out_putts}） / IN ${t.in_score}（${t.in_putts}） / 合計 ${t.score} ・ パット ${t.putts}</div>
-  ${tomoHole ? `<div class="tomo-bar">🤝 A ${short(names[tomoHole.teamA[0]])}・${short(names[tomoHole.teamA[1]])} / B ${short(names[tomoHole.teamB[0]])}・${short(names[tomoHole.teamB[1]])} ｜ ${esc(tomodachiHoleText(tomo, i))} ｜ 本人 ${tomo.totals[0] > 0 ? '+' : ''}${tomo.totals[0]}pt</div>` : ''}
+  ${tomoHole ? `<div class="tomo-bar">A ${n2(names[tomoHole.teamA[0]])}・${n2(names[tomoHole.teamA[1]])} / B ${n2(names[tomoHole.teamB[0]])}・${n2(names[tomoHole.teamB[1]])} ｜ ${esc(tomoShort(tomo, i))} ｜ 本人 ${tomo.totals[0] > 0 ? '+' : ''}${tomo.totals[0]}pt</div>` : ''}
 
   <section class="card compact">
     <div class="score-line">スコア <b>${s.scores[i] || 0}</b> ・ パット <b>${shots.length ? puttCount : (s.putts[i] || 0)}</b>${extras > 0 ? ` <span class="hint">（罰打 +${extras}）</span>` : ''}
@@ -83,9 +90,8 @@ export function renderHole(root) {
     <div class="shots-list">${shots.map(shotBox).join('') || '<span class="hint">まだショットがありません</span>'}</div>
     <div class="club-grid">${DEFAULT_CLUBS.map(c =>
       `<button type="button" class="club-btn ${pendingClub === c ? 'active' : ''}" data-club="${c}">${c}</button>`).join('')}</div>
-    <div class="res-grid">${SHOT_RESULTS.filter(r => r !== '').map(r =>
-      `<button type="button" class="res-btn" data-res="${r}">${r}</button>`).join('')}
-      <button type="button" class="res-btn" data-res="">なし</button></div>
+    <div class="res-grid">${SHOT_RESULTS.map(r =>
+      `<button type="button" class="res-btn" data-res="${r}">${r}</button>`).join('')}</div>
     <div id="shot-msg" class="warn" style="display:none">まず番手を選んでください</div>
     <div class="mod-row">
       <span class="mini-label">${target >= 0 ? `${target + 1}打目に付ける：` : 'ショットへの付随記録：'}</span>
@@ -201,17 +207,15 @@ function buildTomoModal(s, tomo) {
     cells += `<td class="sc-sub">${sum(9, 18)}</td><td class="sc-total">${tomo.totals[pi] > 0 ? '+' : ''}${tomo.totals[pi]}</td>`;
     return `<tr><td class="sc-name">${esc(short(name))}</td>${cells}</tr>`;
   };
-  const lines = tomo.perHole.map(r => {
-    const a = `${short(tomo.players[r.teamA[0]])}・${short(tomo.players[r.teamA[1]])}`;
-    const b = `${short(tomo.players[r.teamB[0]])}・${short(tomo.players[r.teamB[1]])}`;
-    if (!r.complete) return `<div>H${r.hole} A ${a} ／ B ${b} ― 対象 ${r.bet}pt（未確定）</div>`;
-    const w = r.winner === 'TIE' ? '引分（持越し）' : `${r.winner}組勝ち`;
-    return `<div>H${r.hole} A ${a} ／ B ${b} ― 対象 ${r.bet}pt ・ ${w}</div>`;
-  }).join('');
+  const npEntries = Object.entries((s.game && s.game.nearpin) || {})
+    .sort((a, b) => parseInt(a[0].slice(1), 10) - parseInt(b[0].slice(1), 10));
+  const npHtml = npEntries.length
+    ? npEntries.map(([h, n]) => `${h} ${esc(short(n))}`).join(' ／ ')
+    : '記録なし';
   return `<div class="modal-overlay" id="modal-overlay"><div class="modal-box wide">
     ${scorecardHead(s, 'トモダチ')}
     <div class="sc-wrap"><table class="scorecard">${scHeaderRow()}${tomo.players.map((n, pi) => ptRow(n, pi)).join('')}</table></div>
-    <div class="tomo-lines">${lines}</div>
+    <div class="tomo-lines">ニアピン獲得者：${npHtml}</div>
     <button type="button" class="primary modal-close">閉じる</button>
   </div></div>`;
 }
@@ -245,6 +249,7 @@ function bindHoleEvents(root) {
       }
       ensureShots(s, i);
       s.shots[i].push({ club: pendingClub, res: btn.dataset.res, isBunker: false, type: 'club', ob: false, pre4: false, pen: false });
+      pendingClub = ''; // 記録したら番手選択を解除する（同じ番手を続けて入れられるように）
       selShot = -1; // 付随記録の対象は、いま入れたショットにする
       syncDerived(s, i);
       scheduleSave();

@@ -1,6 +1,6 @@
 // MyGolf 設定・定数
 export const APP_NAME = 'MyGolf';
-export const APP_VERSION = '0.4.0';
+export const APP_VERSION = '0.4.1';
 export const DB_NAME = 'mygolf';
 export const DB_VERSION = 1;
 
@@ -11,7 +11,7 @@ export const DEFAULT_CLUBS = [
   'W', '50°', '54°', '58°', 'ChipR', 'PT'
 ];
 
-export const SHOT_RESULTS = ['◎', '◯', '左', '右', '短', '奥', 'ダ', 'ト', ''];
+export const SHOT_RESULTS = ['◯', '左', '右', '短', '奥', 'ダ', 'ト'];
 export const FW_VALUES = ['K', 'L', 'R', 'S', 'O', '-']; // 表示用。FW自体はティーショット結果から自動導出（v0.4〜）
 export const WEATHERS = ['晴れ', '曇り', '雨', '雪'];
 export const WINDS = ['', '弱', '中', '強'];

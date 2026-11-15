@@ -152,3 +152,7 @@ table.scorecard td.sc-under { color: #137333; font-weight: bold; }
 table.scorecard td.sc-over2 { color: #b3261e; font-weight: bold; }
 table.scorecard tr.sc-par td { color: #57606a; background: #fafafa; }
 .tomo-lines { margin-top: 8px; font-size: 12px; line-height: 1.55; }
+
+/* v0.4.1: 結果ボタン7つに合わせたグリッド／トモダチバーを1行に */
+.res-grid { grid-template-columns: repeat(7, 1fr); }
+.tomo-bar { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
