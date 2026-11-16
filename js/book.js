@@ -23,6 +23,29 @@ function diffBg(v, p) {
 const sum = (a, f, t) => a.slice(f, t).reduce((x, y) => x + (y || 0), 0);
 const fmtSigned = n => (n >= 0 ? '+' + n : '' + n);
 
+// ヘッダー1行：左タイトルと右メタ情報が重ならないよう、タイトルを縮小し、
+// それでも入らなければ末尾を「…」で短縮して描く（長いコース名対策）。
+function drawHeaderLine(ctx, title, meta, x, rightX, y, titlePx, metaPx, minPx) {
+  ctx.textBaseline = 'middle';
+  ctx.font = `${metaPx}px ${FONT}`;
+  const avail = (rightX - x) - ctx.measureText(meta).width - 24;
+  let size = titlePx;
+  ctx.font = `bold ${size}px ${FONT}`;
+  let text = title;
+  while (ctx.measureText(text).width > avail && size > minPx) {
+    size -= 2;
+    ctx.font = `bold ${size}px ${FONT}`;
+  }
+  if (ctx.measureText(text).width > avail) {
+    while (text.length && ctx.measureText(text + '…').width > avail) text = text.slice(0, -1);
+    text += '…';
+  }
+  ctx.fillStyle = '#222'; ctx.textAlign = 'left';
+  ctx.fillText(text, x, y);
+  ctx.font = `${metaPx}px ${FONT}`; ctx.fillStyle = '#444'; ctx.textAlign = 'right';
+  ctx.fillText(meta, rightX, y);
+}
+
 /* ---------------- データ整形 ---------------- */
 
 // record = toRoundRecord() の出力（Rounds行形式）。tomo = tomoFromCalc() の結果 or null。
@@ -361,11 +384,9 @@ export function drawBookPage(d) {
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
 
   // ヘッダー
-  ctx.fillStyle = '#222'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.font = `bold 54px ${FONT}`;
-  ctx.fillText(`${d.date}　${d.courseName}`, M, 78);
-  ctx.font = `34px ${FONT}`; ctx.fillStyle = '#444'; ctx.textAlign = 'right';
-  ctx.fillText(`ティー: ${d.tee}　グリーン: ${d.green}　天候: ${d.weather}　風: ${d.wind}　同伴: ${d.companions.join('・') || '−'}`, W - M, 78);
+  drawHeaderLine(ctx, `${d.date}　${d.courseName}`,
+    `ティー: ${d.tee}　グリーン: ${d.green}　天候: ${d.weather}　風: ${d.wind}　同伴: ${d.companions.join('・') || '−'}`,
+    M, W - M, 78, 54, 34, 24);
   ctx.fillStyle = GREEN; ctx.fillRect(M, 122, CW, 5);
 
   // グリッド
@@ -470,11 +491,9 @@ export function drawShareImage(d) {
   const ctx = cv.getContext('2d');
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
 
-  ctx.fillStyle = '#222'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.font = `bold 28px ${FONT}`;
-  ctx.fillText(`${d.date}　${d.courseName}`, M, 62);
-  ctx.font = `17px ${FONT}`; ctx.fillStyle = '#444'; ctx.textAlign = 'right';
-  ctx.fillText(`ティー: ${d.tee}　グリーン: ${d.green}　天候: ${d.weather}　同伴: ${d.companions.join('・') || '−'}`, W - M, 62);
+  drawHeaderLine(ctx, `${d.date}　${d.courseName}`,
+    `ティー: ${d.tee}　グリーン: ${d.green}　天候: ${d.weather}　同伴: ${d.companions.join('・') || '−'}`,
+    M, W - M, 62, 28, 17, 13);
   ctx.fillStyle = GREEN; ctx.fillRect(M, 96, CW, 3);
 
   const gridH = drawGrid(ctx, M, 112, CW, d, false, gridSt);
