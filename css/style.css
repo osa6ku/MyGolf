@@ -209,3 +209,16 @@ table.scorecard tr.sc-par td { color: #57606a; background: #fafafa; }
 .strategy-box { text-align: left; background: #fff8e1; border: 1px solid #e3c878; border-radius: 8px; padding: 8px 10px; margin-top: 10px; }
 .strategy-box h4 { margin: 0 0 4px; font-size: 13px; }
 .strategy-box p { margin: 0; font-size: 13px; white-space: pre-wrap; }
+
+/* 保存完了画面の成果物リンク */
+.btn-link {
+  display: block;
+  text-align: center;
+  background: #1a7f37;
+  color: #fff;
+  font-weight: bold;
+  text-decoration: none;
+  padding: 12px 14px;
+  border-radius: 8px;
+  margin: 8px 0;
+}

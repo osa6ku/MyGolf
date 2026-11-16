@@ -2,13 +2,14 @@
 import { openDb, getMeta } from './db.js';
 import { APP_VERSION } from './config.js';
 import { getState, setState, loadCurrent, saveNow, scheduleSave, totals, toRoundRecord, clearCurrent, summarize, materializePartnerPars } from './state.js';
-import { gasUrl, setGasUrl, pendingList, flushPending, queuePending, saveRoundNow } from './sync.js';
+import { gasUrl, setGasUrl, pendingList, flushPending, queuePending, saveRoundNow, fetchScoreBook, saveScorebookPdf, saveShareImage } from './sync.js';
 import { syncMaster, masterCount, getMembers, getPlayedCourses } from './master.js';
 import { renderSetup, setSetupStartHandler } from './ui-setup.js';
 import { renderHole, setHoleNavHandler, resetHoleModal } from './ui-hole.js';
 import { calcTomodachi } from './game.js';
 import { renderRestore, setRestoreHandler } from './ui-restore.js';
 import { exportRoundJson } from './export.js';
+import { generateArtifacts, tomoFromCalc } from './book.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const $ = sel => document.querySelector(sel);
@@ -101,17 +102,52 @@ function renderFinish() {
     btn.disabled = true; // 弱電波下での連打による二重送信を防ぐ
     const msg = $('#finish-msg');
     const record = toRoundRecord(s);
+    // 生成物（スコアブック／共有画像）は保存成功後に state が消える前に材料を捕捉しておく
+    const tomoCalc = calcTomodachi(s);
+    const npByHole = {};
+    if (s.game && s.game.nearpin) {
+      Object.entries(s.game.nearpin).forEach(([h, n]) => { npByHole[Number(String(h).replace('H', ''))] = n; });
+    }
+    const tomo = tomoCalc ? tomoFromCalc(tomoCalc, s.game ? s.game.order : null, npByHole) : null;
     try {
       const data = await saveRoundNow(record);
-      msg.textContent = data.duplicate ? 'すでに保存済みでした（二重登録なし）。' : '確定保存しました。';
       await clearCurrent();
-      setTimeout(() => show('home'), 1200);
+      renderSaved(record, tomo, !!data.duplicate);
     } catch (err) {
       await queuePending(record);
       msg.textContent = `送信できませんでした。保留キューに入れました（ホームから再送できます）：${err.message || err}`;
       btn.disabled = false;
     }
   });
+}
+
+// 確定保存の完了画面：スコアブックPDFと共有用画像を生成し、リンクを出す
+async function renderSaved(record, tomo, duplicate) {
+  const root = $('#finish-body');
+  root.innerHTML = `
+    <div class="card">
+      <h3>保存完了</h3>
+      <p>${esc(record.course_name)}（${esc(record.date)}）を${duplicate ? '保存済みでした（二重登録なし）' : '確定保存しました'}。</p>
+      <p id="artifact-status">${duplicate ? 'すでに保存済みのラウンドのため、スコアブックへの追記はスキップしました。' : 'スコアブックと共有用画像を作成しています…'}</p>
+      <div id="artifact-links"></div>
+      <button type="button" class="primary" id="saved-home-btn">ホームへ</button>
+    </div>`;
+  $('#saved-home-btn').addEventListener('click', () => show('home'));
+  if (duplicate) return;
+  const statusEl = $('#artifact-status');
+  const linksEl = $('#artifact-links');
+  const out = await generateArtifacts(record, tomo,
+    { fetchScoreBook, saveScorebookPdf, saveShareImage },
+    t => { if (statusEl) statusEl.textContent = t; });
+  const links = [];
+  if (out.bookUrl) links.push(`<p><a class="btn-link" href="${esc(out.bookUrl)}" target="_blank" rel="noopener">📖 スコアブックPDF</a></p>`);
+  if (out.shareUrl) links.push(`<p><a class="btn-link" href="${esc(out.shareUrl)}" target="_blank" rel="noopener">🖼 共有用スコアカード画像</a></p>`);
+  if (linksEl) linksEl.innerHTML = links.join('');
+  if (statusEl) {
+    statusEl.textContent = out.errors.length
+      ? `一部作成できませんでした：${out.errors.join(' / ')}`
+      : 'スコアブックと共有用画像を作成しました。';
+  }
 }
 
 async function renderSettings() {

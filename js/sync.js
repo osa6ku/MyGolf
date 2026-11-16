@@ -18,7 +18,7 @@ function fetchWithTimeout(url, options, ms = 10000) {
     .finally(() => clearTimeout(timer));
 }
 
-async function call(action, payload, method = 'POST', retries = 3) {
+async function call(action, payload, method = 'POST', retries = 3, timeoutMs = 10000) {
   const base = await gasUrl();
   if (!base) throw new Error('GAS URL が未設定です');
   let lastErr = null;
@@ -28,14 +28,14 @@ async function call(action, payload, method = 'POST', retries = 3) {
       if (method === 'GET') {
         const u = new URL(base);
         u.searchParams.set('action', action);
-        res = await fetchWithTimeout(u.toString(), { method: 'GET' });
+        res = await fetchWithTimeout(u.toString(), { method: 'GET' }, timeoutMs);
       } else {
         // CORS 回避のため Content-Type: text/plain で JSON 文字列を送る（現行の修正知見を継承）
         res = await fetchWithTimeout(base, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({ action, ...payload }),
-        });
+        }, timeoutMs);
       }
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'サーバーエラー');
@@ -110,4 +110,17 @@ export async function flushPending() {
 
 export async function saveRoundNow(record) {
   return call('saveRound', { round: record });
+}
+
+// --- スコアブック / 共有画像（大きな base64 を運ぶため長タイムアウト・リトライ1回） ---
+export async function fetchScoreBook() {
+  return call('getScoreBook', null, 'GET', 1, 120000);
+}
+
+export async function saveScorebookPdf(payload) {
+  return call('saveScorebookPDF', payload, 'POST', 1, 180000);
+}
+
+export async function saveShareImage(payload) {
+  return call('saveShareImage', payload, 'POST', 1, 90000);
 }
