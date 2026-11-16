@@ -1,4 +1,5 @@
 :root { --green: #1a7f37; --border: #d0d7de; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* Android Chrome の文字自動拡大（フォントブースティング）を無効化 */
 * { box-sizing: border-box; }
 body { margin: 0; font-family: -apple-system, "Hiragino Sans", sans-serif; background: #f6f8fa; color: #1f2328; padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
 header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--green); color: #fff; position: sticky; top: 0; z-index: 10; }
