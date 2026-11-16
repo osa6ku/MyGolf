@@ -1,7 +1,7 @@
 // MyGolf Service Worker
 // 新バージョンは自動で有効化しない（ラウンド進行中の差し替え防止）。
-// 有効化は次回起動時（waiting のまま放置され、タブが閉じれば自然に切り替わる）。
-const CACHE = 'mygolf-v26';
+// 有効化は次回起動時か、アプリ内バナーの「更新する」（SKIP_WAITING）から。
+const CACHE = 'mygolf-v27';
 const SHELL = [
   './',
   './index.html',
@@ -35,6 +35,11 @@ self.addEventListener('activate', event => {
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+// アプリの「更新する」ボタンからの明示指示でのみ即時有効化する
+self.addEventListener('message', event => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', event => {

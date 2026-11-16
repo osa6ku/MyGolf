@@ -239,6 +239,47 @@ async function init() {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
+  // バージョン確認：PWA は再開時にページを読み直さないため、サーバーの version.json と
+  // 明示的に比べないと更新に気づけない。新しければバナーを出し、タップで更新する。
+  let lastVersionCheck = 0;
+  async function checkForUpdate() {
+    const now = Date.now();
+    if (now - lastVersionCheck < 10 * 60 * 1000) return;
+    lastVersionCheck = now;
+    try {
+      const res = await fetch('./version.json', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.version && data.version !== APP_VERSION) showUpdateBanner(data.version);
+    } catch (_) { /* オフライン時は何もしない */ }
+  }
+  function showUpdateBanner(v) {
+    if ($('#update-banner')) return;
+    const bar = document.createElement('div');
+    bar.id = 'update-banner';
+    bar.className = 'banner';
+    bar.innerHTML = `新しいバージョン v${esc(v)} があります <button type="button" id="update-apply" class="small">更新する</button>`;
+    document.body.prepend(bar);
+    $('#update-apply').addEventListener('click', applyUpdate);
+  }
+  async function applyUpdate() {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        await reg.update().catch(() => {});
+        if (reg.waiting) {
+          navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
+          reg.waiting.postMessage('SKIP_WAITING');
+          setTimeout(() => location.reload(), 3000); // 切り替わらない場合の保険
+          return;
+        }
+      }
+    } catch (_) { /* そのまま再読み込みする */ }
+    location.reload();
+  }
+  checkForUpdate();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+
   show('home');
 }
 
