@@ -250,7 +250,11 @@ async function init() {
       const res = await fetch('./version.json', { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
-      if (data.version && data.version !== APP_VERSION) showUpdateBanner(data.version);
+      if (data.version && data.version !== APP_VERSION) {
+        // 新 SW のインストールを先に走らせておく（「更新する」を押した時点で waiting にしておく）
+        navigator.serviceWorker.getRegistration().then(r => { if (r) r.update().catch(() => {}); }).catch(() => {});
+        showUpdateBanner(data.version);
+      }
     } catch (_) { /* オフライン時は何もしない */ }
   }
   function showUpdateBanner(v) {
@@ -266,11 +270,23 @@ async function init() {
     try {
       const reg = await navigator.serviceWorker.getRegistration();
       if (reg) {
+        let reloaded = false;
+        const reloadOnce = () => { if (!reloaded) { reloaded = true; location.reload(); } };
+        navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
         await reg.update().catch(() => {});
-        if (reg.waiting) {
-          navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
-          reg.waiting.postMessage('SKIP_WAITING');
-          setTimeout(() => location.reload(), 3000); // 切り替わらない場合の保険
+        const sw = reg.waiting || reg.installing;
+        if (sw) {
+          // インストール完了（waiting 化）を待ってから有効化する。即チェックすると
+          // まだ installing で waiting が無く、古い版のまま再読み込みしてしまう。
+          const target = reg.waiting || sw;
+          if (target.state === 'installed') {
+            target.postMessage('SKIP_WAITING');
+          } else {
+            target.addEventListener('statechange', () => {
+              if (target.state === 'installed') target.postMessage('SKIP_WAITING');
+            });
+          }
+          setTimeout(reloadOnce, 6000); // 切り替わらない場合の保険
           return;
         }
       }
