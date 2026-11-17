@@ -1,6 +1,7 @@
 // コースマスタ：取得・キャッシュ・検索。同期完了時はキャッシュ差し替えのみ（進行中ラウンドに干渉しない）。
 import { replaceAll, getAll, setMeta, getMeta } from './db.js';
 import { fetchMaster } from './sync.js';
+import { COURSE_HALF_PAIRS } from './config.js';
 
 export async function syncMaster() {
   const { courses, members, played } = await fetchMaster();
@@ -51,7 +52,13 @@ export async function addCustomCourse(course) {
 export async function allCourses() {
   const base = await getAll('master');
   const custom = await getCustomCourses();
-  return custom.length ? [...base, ...custom] : base;
+  const merged = custom.length ? [...base, ...custom] : base;
+  // 組み合わせが判明しているコースには half_pairs を付与する（設定画面のハーフ連動で使う）
+  for (const c of merged) {
+    const pairs = COURSE_HALF_PAIRS[String(c.course_id)];
+    if (pairs && !c.half_pairs) c.half_pairs = pairs;
+  }
+  return merged;
 }
 
 export async function searchCourses(query) {

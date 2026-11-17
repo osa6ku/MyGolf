@@ -93,11 +93,11 @@ export function renderHole(root) {
     <button type="button" class="hole-title-btn" id="hole-title">
       <span class="hole-course">${esc(s.course_name)}</span>
       <span class="hole-name">${esc(subName)} ${i % 9 + 1}H <span class="hole-no">（${s.currentHole}H）</span> <span class="hole-pick-mark">▾</span></span>
-      <span class="hole-meta">Par ${s.pars[i]} ・ ${s.yards[i]}y ・ Hdcp ${s.hdcp[i]}</span>
+      <span class="hole-meta">${s.yards[i]}y ・ Hdcp ${s.hdcp[i]}</span>
     </button>
+    <label class="par-head"><span>Par</span><select id="par-sel">${[3, 4, 5, 6].map(v => `<option value="${v}" ${v === s.pars[i] ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
     <button type="button" id="hole-next" ${i === 17 ? 'disabled' : ''}>次 ▶</button>
   </div>
-  <div class="par-row"><span class="mini-label">このホールのPar</span><select id="par-sel">${[3, 4, 5, 6].map(v => `<option value="${v}" ${v === s.pars[i] ? 'selected' : ''}>Par ${v}</option>`).join('')}</select><span class="hint">コース都合で変わる日はここで変更</span></div>
   <button type="button" id="open-score" class="totals-bar btn-bar">OUT ${t.out_score}（${t.out_putts}） / IN ${t.in_score}（${t.in_putts}） / 合計 ${t.score} ・ パット ${t.putts}</button>
   ${tomoHole ? `<button type="button" id="open-tomo" class="tomo-bar btn-bar">A ${n2(names[tomoHole.teamA[0]])}・${n2(names[tomoHole.teamA[1]])} / B ${n2(names[tomoHole.teamB[0]])}・${n2(names[tomoHole.teamB[1]])} ｜ ${esc(tomoShort(tomo, i))} ｜ 本人 ${tomo.totals[0] > 0 ? '+' : ''}${tomo.totals[0]}pt</button>` : ''}
 

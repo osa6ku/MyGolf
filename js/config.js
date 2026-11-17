@@ -1,6 +1,6 @@
 // MyGolf 設定・定数
 export const APP_NAME = 'MyGolf';
-export const APP_VERSION = '0.6.8';
+export const APP_VERSION = '0.6.9';
 export const DB_NAME = 'mygolf';
 export const DB_VERSION = 1;
 
@@ -16,3 +16,10 @@ export const SHOT_RESULTS = ['◯', '左', '右', '短', '奥', 'ダ', 'ト'];
 export const FW_VALUES = ['K', 'L', 'R', 'S', 'O', '-']; // 表示用。FW自体はティーショット結果から自動導出（v0.4〜）
 export const WEATHERS = ['晴れ', '曇り', '雨', '雪'];
 export const WINDS = ['', '弱', '中', '強'];
+
+// ハーフの組み合わせ（回る順番）が決まっているコース（course_id → [[前半, 後半], ...]）。
+// DBのCoursesには組み合わせ情報が無いため、判明したコースだけここに登録する。
+export const COURSE_HALF_PAIRS = {
+  // ゴールデンレイクスカントリークラブ：3コース営業時のローテーション（楽天GORA予約メールのゴルフ場案内に明記）
+  '90036': [['グリーンコース', 'ブルーコース'], ['ブルーコース', 'オレンジコース'], ['オレンジコース', 'グリーンコース']],
+};
