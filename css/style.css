@@ -227,3 +227,7 @@ table.scorecard tr.sc-par td { color: #57606a; background: #fafafa; }
 /* 新規コース追加フォーム：パー選択を横並びに */
 .nc-pars { display: flex; gap: 2px; flex-wrap: wrap; }
 .nc-pars select { width: 3.4em; flex: none; }
+
+/* ホール画面：Par当日変更の行 */
+.par-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.par-row select { width: 6.5em; flex: none; }

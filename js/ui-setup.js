@@ -490,6 +490,11 @@ async function renderCurrentSetup(root, s) {
       strategies.push(...(sub.strategies || sub.pars.map(() => '')));
     });
     next.pars = pars; next.yards = yards; next.hdcp = hdcp; next.strategies = strategies;
+    // コースとハーフ構成が同じままの設定更新では、当日変更したPar（ホール画面のPar変更）を保持する
+    if (String(selectedCourse.course_id) === String(s.course_id)
+      && halves[0].name === s.half_names[0] && halves[1].name === s.half_names[1]) {
+      next.pars = [...s.pars];
+    }
     // 同伴者：名前が一致すればスコア・パットを引き継ぐ
     const oldByName = {};
     s.partners.forEach(p => { oldByName[p.name] = p; });

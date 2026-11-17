@@ -97,6 +97,7 @@ export function renderHole(root) {
     </button>
     <button type="button" id="hole-next" ${i === 17 ? 'disabled' : ''}>次 ▶</button>
   </div>
+  <div class="par-row"><span class="mini-label">このホールのPar</span><select id="par-sel">${[3, 4, 5, 6].map(v => `<option value="${v}" ${v === s.pars[i] ? 'selected' : ''}>Par ${v}</option>`).join('')}</select><span class="hint">コース都合で変わる日はここで変更</span></div>
   <button type="button" id="open-score" class="totals-bar btn-bar">OUT ${t.out_score}（${t.out_putts}） / IN ${t.in_score}（${t.in_putts}） / 合計 ${t.score} ・ パット ${t.putts}</button>
   ${tomoHole ? `<button type="button" id="open-tomo" class="tomo-bar btn-bar">A ${n2(names[tomoHole.teamA[0]])}・${n2(names[tomoHole.teamA[1]])} / B ${n2(names[tomoHole.teamB[0]])}・${n2(names[tomoHole.teamB[1]])} ｜ ${esc(tomoShort(tomo, i))} ｜ 本人 ${tomo.totals[0] > 0 ? '+' : ''}${tomo.totals[0]}pt</button>` : ''}
 
@@ -255,6 +256,14 @@ function bindHoleEvents(root) {
   const s = getState();
   const i = s.currentHole - 1;
   const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+
+  // Parの当日変更：state.pars を直接書き換えて保存し、画面（合計・ニアピン表示など）を更新する
+  const parSel = root.querySelector('#par-sel');
+  if (parSel) parSel.addEventListener('change', async () => {
+    s.pars[i] = Number(parSel.value);
+    await saveNow().catch(() => {});
+    renderHole(root);
+  });
 
   // 番手 → 結果 の2タップで1打追加
   root.querySelectorAll('.club-btn').forEach(btn => {
