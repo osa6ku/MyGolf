@@ -159,6 +159,18 @@ export async function renderSetup(root) {
   });
 }
 
+// 後半の候補：コースに組み合わせ表（half_pairs: [[前半,後半],...]）があればそれに従い、
+// 無ければ前半と同じハーフを除いた残り全部。ハーフが1つだけのコース（9ホール）は同じハーフを2回回る。
+function halfCandidates(course, frontName) {
+  const subs = course.sub_courses || [];
+  const names = subs.map(s => s.name);
+  if (names.length <= 1) return names;
+  const pairs = Array.isArray(course.half_pairs) ? course.half_pairs : [];
+  const paired = pairs.filter(p => p && p[0] === frontName).map(p => p[1]).filter(n => names.includes(n));
+  if (paired.length) return [...new Set(paired)];
+  return names.filter(n => n !== frontName);
+}
+
 // ハーフ名＋ティー＋グリーンから、state が必要とするハーフ情報を組み立てる
 function pickSub(course, halfName, teeName, greenName) {
   const sub = (course.sub_courses || []).find(x => x.name === halfName) || course.sub_courses[0];
@@ -245,15 +257,26 @@ async function selectCourse(root, courseId, preset) {
     if (t.is_regular_tee && !regularTee) regularTee = t.tee_name;
   }));
   const halfA = preset && preset.halfA && subs.some(s => s.name === preset.halfA) ? preset.halfA : (subs[0] ? subs[0].name : '');
-  const halfB = preset && preset.halfB && subs.some(s => s.name === preset.halfB) ? preset.halfB : (subs[1] ? subs[1].name : halfA);
+  const backCandidates = halfCandidates(selectedCourse, halfA);
+  const halfB = preset && preset.halfB && backCandidates.includes(preset.halfB) ? preset.halfB : (backCandidates[0] || halfA);
   const teeSel = preset && preset.tee && teeNames.includes(preset.tee) ? preset.tee : regularTee;
   const greenSel = preset && preset.green && greenNames.includes(preset.green) ? preset.green : (greenNames[0] || '');
   root.querySelector('#course-selected').innerHTML = `
     <p class="selected-course">選択中：${esc(selectedCourse.name)}</p>
     <div class="row"><label>前半</label><select id="half-a">${subs.map(s => `<option ${s.name === halfA ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>
-    <div class="row"><label>後半</label><select id="half-b">${subs.map(s => `<option ${s.name === halfB ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>
+    <div class="row"><label>後半</label><select id="half-b">${backCandidates.map(n => `<option ${n === halfB ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
     <div class="row"><label>ティー</label><select id="tee-sel">${teeNames.map(n => `<option ${n === teeSel ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
     <div class="row"><label>グリーン</label><select id="green-sel">${greenNames.map(n => `<option ${n === greenSel ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>`;
+  // 前半を変えたら後半の候補を連動させる（現在の後半が候補に残る場合は維持、残らなければ先頭の候補にする）
+  const halfASel = root.querySelector('#half-a');
+  const halfBSel = root.querySelector('#half-b');
+  if (halfASel && halfBSel) {
+    halfASel.addEventListener('change', () => {
+      const cands = halfCandidates(selectedCourse, halfASel.value);
+      const keep = cands.includes(halfBSel.value) ? halfBSel.value : cands[0];
+      halfBSel.innerHTML = cands.map(n => `<option ${n === keep ? 'selected' : ''}>${esc(n)}</option>`).join('');
+    });
+  }
   ['#start-round', '#apply-settings'].forEach(sel => {
     const btn = root.querySelector(sel);
     if (btn) btn.disabled = false;
