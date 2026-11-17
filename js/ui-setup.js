@@ -1,6 +1,6 @@
 // ラウンド設定：コース選択（プレー済みリスト＋新規はインクリメンタルサーチ）、条件、同伴者、打順（常時）、端末間復元オプション
 // v0.3: トモダチの使用オプションは廃止。4人なら開始時に自動でゲームを作る。打順はトモダチと無関係に常時設定する。
-import { searchCourses, getMembers, getPlayedCourses } from './master.js';
+import { searchCourses, getMembers, getPlayedCourses, addCustomCourse } from './master.js';
 import { newRoundState, setState, getState, clearCurrent, saveNow, overwritePrevGeneration, summarize } from './state.js';
 import { fetchDraft, saveDraft } from './sync.js';
 import { newGame, shuffleOrder } from './game.js';
@@ -9,6 +9,7 @@ import { WEATHERS, WINDS } from './config.js';
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 let selectedCourse = null;
+let lastPreset = null;
 let onStart = () => {};
 export function setSetupStartHandler(fn) { onStart = fn; }
 
@@ -57,21 +58,7 @@ export async function renderSetup(root) {
   <button type="button" id="start-round" class="primary" disabled>ラウンド開始</button>`;
 
   // --- コース選択：プレー済みは同伴者と同じプルダウンから。新規は入力して全マスタを検索 ---
-  const q = root.querySelector('#course-q');
-  const results = root.querySelector('#course-results');
-  const renderSearch = async () => {
-    const list = await searchCourses(q.value);
-    results.innerHTML = list.map(c =>
-      `<button type="button" class="course-item" data-id="${esc(c.course_id)}">${esc(c.name)}</button>`).join('') || '<p>該当なし</p>';
-    bindCourseButtons(root, results);
-  };
-  q.addEventListener('input', () => {
-    if (!q.value.trim()) results.innerHTML = '';
-    else renderSearch();
-  });
-  root.querySelector('#played-select').addEventListener('change', e => {
-    if (e.target.value) selectCourse(root, e.target.value);
-  });
+  wireCourseSearch(root);
 
   // --- 同伴者スロット（メンバー一覧から選択。新規はその場で入力） ---
   const members = await getMembers();
@@ -183,6 +170,79 @@ function pickSub(course, halfName, teeName, greenName) {
   return { name: sub.name, pars: sub.pars, handicaps: sub.handicaps, yards: tee.distance_per_hole, strategies: sub.hole_strategies || [] };
 }
 
+// コース検索の配線（新規設定・設定変更で共通）。検索結果に出ないコースはその場で新規追加できる。
+function wireCourseSearch(root) {
+  const q = root.querySelector('#course-q');
+  const results = root.querySelector('#course-results');
+  const renderSearch = async () => {
+    const list = await searchCourses(q.value);
+    const html = list.map(c =>
+      `<button type="button" class="course-item" data-id="${esc(c.course_id)}">${esc(c.name)}</button>`).join('');
+    results.innerHTML = (html || '<p>該当なし</p>')
+      + (q.value.trim() ? `<button type="button" class="course-item" data-add="1">「${esc(q.value.trim())}」を新規コースとして追加</button>` : '');
+    bindCourseButtons(root, results);
+    const addBtn = results.querySelector('[data-add]');
+    if (addBtn) addBtn.addEventListener('click', () => renderNewCourseForm(root, q.value.trim()));
+  };
+  q.addEventListener('input', () => {
+    if (!q.value.trim()) results.innerHTML = '';
+    else renderSearch();
+  });
+  root.querySelector('#played-select').addEventListener('change', e => {
+    if (e.target.value) selectCourse(root, e.target.value);
+  });
+}
+
+const PAR_TEMPLATE = [4, 4, 3, 5, 4, 4, 3, 5, 4];
+const HDCP_TEMPLATE = [2, 5, 8, 1, 7, 4, 9, 6, 3];
+
+// マスタに無いコースをこの端末に追加する（最低限：名前・ハーフ名・パー。距離は0、Hdcpは仮置き）
+function renderNewCourseForm(root, name) {
+  const box = root.querySelector('#course-selected');
+  const halfBlock = (idx, defName) => `
+    <div class="nc-half">
+      <div class="row"><label>ハーフ${idx + 1}名</label><input type="text" class="nc-half-name" value="${esc(defName)}"></div>
+      <div class="row"><label>パー</label><span class="nc-pars">${PAR_TEMPLATE.map(p => `<select class="nc-par">${[3, 4, 5, 6].map(v => `<option ${v === p ? 'selected' : ''}>${v}</option>`).join('')}</select>`).join('')}</span></div>
+    </div>`;
+  box.innerHTML = `
+    <p class="selected-course">新規コースを追加（この端末にだけ保存されます）</p>
+    <div class="row"><label>コース名</label><input type="text" id="nc-name" value="${esc(name || '')}"></div>
+    <div class="row"><label>ハーフ数</label><select id="nc-count"><option value="2">2（18ホール）</option><option value="1">1（9ホール）</option></select></div>
+    <div id="nc-halves">${halfBlock(0, 'OUT')}${halfBlock(1, 'IN')}</div>
+    <p class="hint">パーは標準的な並びが初期値です。違うホールは直してください。距離は0で登録されます。</p>
+    <div class="row"><button type="button" id="nc-save" class="primary">追加して選択する</button><button type="button" id="nc-cancel">やめる</button></div>`;
+  const countSel = box.querySelector('#nc-count');
+  countSel.addEventListener('change', () => {
+    box.querySelector('#nc-halves').innerHTML = countSel.value === '1' ? halfBlock(0, 'OUT') : halfBlock(0, 'OUT') + halfBlock(1, 'IN');
+  });
+  box.querySelector('#nc-cancel').addEventListener('click', () => {
+    if (selectedCourse) selectCourse(root, selectedCourse.course_id, lastPreset || undefined);
+    else box.innerHTML = '';
+  });
+  box.querySelector('#nc-save').addEventListener('click', async () => {
+    const cname = box.querySelector('#nc-name').value.trim();
+    if (!cname) { alert('コース名を入力してください'); return; }
+    const subs = [...box.querySelectorAll('.nc-half')].map((h, i) => ({
+      sub_course_id: null,
+      name: h.querySelector('.nc-half-name').value.trim() || (i === 0 ? 'OUT' : 'IN'),
+      hole_range: '1_to_9',
+      pars: [...h.querySelectorAll('.nc-par')].map(s => Number(s.value)),
+      handicaps: [...HDCP_TEMPLATE],
+      hole_strategies: Array(9).fill(null),
+      recommended_holes: Array(9).fill(null),
+      tees: [],
+    }));
+    const course = {
+      course_id: `local-${Date.now()}`, name: cname, name_kana: '', name_abbreviation: '', custom: true,
+      sub_courses: subs,
+    };
+    await addCustomCourse(course);
+    const res = root.querySelector('#course-results');
+    if (res) res.innerHTML = '';
+    await selectCourse(root, course.course_id);
+  });
+}
+
 function bindCourseButtons(root, results) {
   results.querySelectorAll('.course-item').forEach(btn => {
     btn.addEventListener('click', () => selectCourse(root, btn.dataset.id));
@@ -247,6 +307,7 @@ async function selectCourse(root, courseId, preset) {
   const all = await allCourses();
   selectedCourse = all.find(c => String(c.course_id) === String(courseId));
   if (!selectedCourse) return;
+  if (preset) lastPreset = preset;
   const subs = selectedCourse.sub_courses || [];
   const teeNames = [];
   const greenNames = [];
@@ -264,17 +325,32 @@ async function selectCourse(root, courseId, preset) {
   root.querySelector('#course-selected').innerHTML = `
     <p class="selected-course">選択中：${esc(selectedCourse.name)}</p>
     <div class="row"><label>前半</label><select id="half-a">${subs.map(s => `<option ${s.name === halfA ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>
-    <div class="row"><label>後半</label><select id="half-b">${backCandidates.map(n => `<option ${n === halfB ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+    <div class="row"><label>後半</label><select id="half-b">${backCandidates.map(n => `<option ${n === halfB ? 'selected' : ''}>${esc(n)}</option>`).join('')}<option value="__all__">＋ 全ハーフから選ぶ</option></select></div>
     <div class="row"><label>ティー</label><select id="tee-sel">${teeNames.map(n => `<option ${n === teeSel ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
     <div class="row"><label>グリーン</label><select id="green-sel">${greenNames.map(n => `<option ${n === greenSel ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>`;
-  // 前半を変えたら後半の候補を連動させる（現在の後半が候補に残る場合は維持、残らなければ先頭の候補にする）
+  // 前半を変えたら後半の候補を連動させる（現在の後半が候補に残る場合は維持、残らなければ先頭の候補にする）。
+  // 後半で「＋ 全ハーフから選ぶ」を選ぶと全ハーフ表示に切り替わり、その後は前半に連動させない（手動選択を優先）。
   const halfASel = root.querySelector('#half-a');
   const halfBSel = root.querySelector('#half-b');
   if (halfASel && halfBSel) {
+    halfBSel.dataset.current = halfB;
+    const renderBack = names => {
+      const keep = names.includes(halfBSel.dataset.current) ? halfBSel.dataset.current : names[0];
+      halfBSel.dataset.current = keep;
+      halfBSel.innerHTML = names.map(n => `<option ${n === keep ? 'selected' : ''}>${esc(n)}</option>`).join('')
+        + (halfBSel.dataset.free === '1' ? '' : '<option value="__all__">＋ 全ハーフから選ぶ</option>');
+    };
     halfASel.addEventListener('change', () => {
-      const cands = halfCandidates(selectedCourse, halfASel.value);
-      const keep = cands.includes(halfBSel.value) ? halfBSel.value : cands[0];
-      halfBSel.innerHTML = cands.map(n => `<option ${n === keep ? 'selected' : ''}>${esc(n)}</option>`).join('');
+      if (halfBSel.dataset.free === '1') return;
+      renderBack(halfCandidates(selectedCourse, halfASel.value));
+    });
+    halfBSel.addEventListener('change', () => {
+      if (halfBSel.value === '__all__') {
+        halfBSel.dataset.free = '1';
+        renderBack((selectedCourse.sub_courses || []).map(s => s.name));
+      } else {
+        halfBSel.dataset.current = halfBSel.value;
+      }
     });
   }
   ['#start-round', '#apply-settings'].forEach(sel => {
@@ -328,21 +404,7 @@ async function renderCurrentSetup(root, s) {
   <button type="button" id="restart-round">新しいラウンドを始める</button>`;
 
   // --- コース選択（プレー済みは同伴者と同じプルダウンから。現在のコースは下で選択済みにする） ---
-  const q = root.querySelector('#course-q');
-  const results = root.querySelector('#course-results');
-  const renderSearch = async () => {
-    const list = await searchCourses(q.value);
-    results.innerHTML = list.map(c =>
-      `<button type="button" class="course-item" data-id="${esc(c.course_id)}">${esc(c.name)}</button>`).join('') || '<p>該当なし</p>';
-    bindCourseButtons(root, results);
-  };
-  q.addEventListener('input', () => {
-    if (!q.value.trim()) results.innerHTML = '';
-    else renderSearch();
-  });
-  root.querySelector('#played-select').addEventListener('change', e => {
-    if (e.target.value) selectCourse(root, e.target.value);
-  });
+  wireCourseSearch(root);
   // 現在のコース・構成を初期選択にする
   await selectCourse(root, s.course_id, {
     halfA: s.half_names[0], halfB: s.half_names[1], tee: s.tee, green: s.green,

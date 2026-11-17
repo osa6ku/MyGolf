@@ -36,8 +36,22 @@ export async function getPlayedCourses() {
   return [...merged.values()];
 }
 
+// マスタに無いコースを端末ローカルで追加したもの（metaに保存し、マスタ同期では消えない）
+export async function getCustomCourses() {
+  return (await getMeta('customCourses', [])) || [];
+}
+
+export async function addCustomCourse(course) {
+  const list = await getCustomCourses();
+  list.push(course);
+  await setMeta('customCourses', list);
+  return course;
+}
+
 export async function allCourses() {
-  return getAll('master');
+  const base = await getAll('master');
+  const custom = await getCustomCourses();
+  return custom.length ? [...base, ...custom] : base;
 }
 
 export async function searchCourses(query) {
