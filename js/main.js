@@ -15,6 +15,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 const $ = sel => document.querySelector(sel);
 
 function show(screen) {
+  document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === screen));
   document.querySelectorAll('.screen').forEach(el => { el.style.display = 'none'; });
   const el = $(`#screen-${screen}`);
   if (el) el.style.display = '';
