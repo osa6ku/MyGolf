@@ -279,3 +279,9 @@ table.scorecard th { background: #dcefe1; }
 .tabbar button[data-nav="restore"]::before { content: "💾"; }
 .tabbar button[data-nav="settings"]::before { content: "⚙️"; }
 .tabbar button.active { background: rgba(255, 255, 255, .15); color: #fff; font-weight: bold; box-shadow: inset 0 3px 0 #f2c14e; }
+
+/* v0.7.2: バージョン表示ボタン＋変更履歴モーダル */
+.app-version-btn { background: rgba(255, 255, 255, .18); border: 1px solid rgba(255, 255, 255, .5); border-radius: 10px; color: #fff; font-size: 12px; padding: 2px 9px; vertical-align: middle; }
+.cl-ver { font-weight: bold; font-size: 14px; margin-top: 12px; }
+.cl-date { font-weight: normal; font-size: 11px; color: #57606a; margin-left: 4px; }
+.cl-list { margin: 2px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.55; }
