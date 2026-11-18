@@ -239,3 +239,31 @@ table.scorecard tr.sc-par td { color: #57606a; background: #fafafa; }
 #screen-setup .row { margin: 3px 0; }
 #screen-setup .hint { margin: 3px 0; }
 #screen-setup .order-list { margin: 4px 0; }
+
+/* v0.7.0: デザインB（グリーン基調）— 色・影のみの上書き。レイアウト・寸法は不変（2026-11-18 本人選択） */
+:root { --green-dark: #0d5c26; --green-bright: #2ea043; --tint: #f2faf4; --tint-border: #b7dfc0; --ink-green: #14532d; --amber: #e0a63f; --amber-ink: #7a4d00; }
+body { background: #f0f5f0; }
+header { background: linear-gradient(135deg, var(--green-dark), var(--green) 60%, var(--green-bright)); box-shadow: 0 2px 6px rgba(13, 92, 38, .35); }
+.card { border-color: #d8e4da; box-shadow: 0 1px 4px rgba(31, 35, 40, .13); }
+button { background: var(--tint); border-color: var(--tint-border); color: var(--ink-green); }
+button.primary { background: linear-gradient(180deg, var(--green-bright), var(--green)); border-color: var(--green-dark); color: #fff; font-weight: bold; box-shadow: 0 3px 8px rgba(26, 127, 55, .35); }
+.btn-link { background: linear-gradient(180deg, var(--green-bright), var(--green)); box-shadow: 0 3px 8px rgba(26, 127, 55, .35); }
+.tabbar { box-shadow: 0 -2px 8px rgba(31, 35, 40, .10); }
+.tabbar button { background: #fff; color: #1f2328; }
+.hole-chip { background: #eef7f0; border-color: var(--tint-border); color: var(--ink-green); }
+.hole-chip.active { background: var(--green); border-color: var(--green-dark); color: #fff; box-shadow: 0 2px 5px rgba(26, 127, 55, .40); }
+.hole-chip.done { background: #cdeeda; border-color: var(--green); color: var(--green-dark); }
+.totals-bar { background: linear-gradient(180deg, #eef7f0, #dcefe1); color: var(--green-dark); font-weight: bold; }
+.totals-bar.btn-bar { background: linear-gradient(180deg, #eef7f0, #cdeeda); border-color: var(--green); color: var(--green-dark); box-shadow: 0 2px 6px rgba(26, 127, 55, .25); }
+.club-btn { background: var(--tint); border-color: var(--tint-border); color: var(--ink-green); }
+.club-btn.active { background: linear-gradient(180deg, var(--green-bright), var(--green)); border-color: var(--green-dark); color: #fff; box-shadow: 0 2px 6px rgba(26, 127, 55, .45); }
+.club-btn[data-club="PT"] { background: #e6f4ea; border-color: #34a853; color: var(--green-dark); font-weight: bold; }
+.club-btn[data-club="PT"].active { background: linear-gradient(180deg, #34a853, var(--green)); border-color: var(--green-dark); color: #fff; box-shadow: 0 2px 6px rgba(26, 127, 55, .45); }
+.club-btn[data-club="PT外"] { background: #fff4e0; border-color: var(--amber); color: var(--amber-ink); font-weight: bold; }
+.club-btn[data-club="PT外"].active { background: linear-gradient(180deg, #f2c14e, var(--amber)); border-color: #b97e06; color: #4d3600; box-shadow: 0 2px 6px rgba(224, 166, 63, .45); }
+.chip { background: var(--tint); border-color: var(--tint-border); color: var(--ink-green); }
+.chip.active { background: var(--green); border-color: var(--green-dark); color: #fff; box-shadow: 0 2px 5px rgba(26, 127, 55, .35); }
+.hole-pick { background: var(--tint); }
+.shot-box.res-best { background: #d9f2e0; }
+.shot-box.res-bad { background: #fde3e3; }
+table.scorecard th { background: #dcefe1; }
