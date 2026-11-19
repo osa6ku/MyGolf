@@ -289,3 +289,7 @@ table.scorecard th { background: #dcefe1; }
 /* v0.7.3: 結果ボタンを青系に色分け（番手の緑・PT外の琥珀と区別）。色のみの上書き、レイアウト不変 */
 .res-btn { background: #e9f1fc; border-color: #9dbfe8; color: #17457a; font-weight: bold; }
 .res-btn:active { background: linear-gradient(180deg, #7aa7e0, #4a7fc1); border-color: #17457a; color: #fff; }
+
+/* v0.7.4: iPhone PWA で画面上部がステータスバー（モヤ領域）に重なり、更新バナー等が押せない問題への対応。
+   body 上部にセーフエリア分の余白を確保する（インセットのない環境では 0 で無影響） */
+body { padding-top: env(safe-area-inset-top); }
