@@ -98,26 +98,27 @@ async function renderHome() {
   $('#new-btn').addEventListener('click', async () => { await renderSetup($('#screen-setup')); show('setup'); });
   $('#restore-btn').addEventListener('click', async () => { await renderRestore($('#screen-restore')); show('restore'); });
   $('#books-btn').addEventListener('click', () => show('books'));
-  $('#book-pdf-btn').addEventListener('click', async () => {
-    const msg = $('#book-pdf-msg');
+  const bookPdfBtn = $('#book-pdf-btn');
+  const showPdfLink = url => {
+    if (bookPdfBtn) bookPdfBtn.style.display = 'none';
     const linksEl = $('#book-pdf-links');
-    let url = await getMeta('scorebookPdfUrl', '');
-    if (!url) {
-      if (msg) msg.textContent = 'スコアブックを探しています…';
-      try {
-        const res = await fetchScoreBook();
-        if (res && res.exists && res.url) {
-          url = res.url;
-          await setMeta('scorebookPdfUrl', url);
-        }
-      } catch (e) { /* 取得できなければ未作成として扱う */ }
-    }
-    if (msg) msg.textContent = '';
-    if (url) {
-      if (linksEl) linksEl.innerHTML = `<p><a class="btn-link" href="${esc(url)}" target="_blank" rel="noopener">📖 スコアブックPDFを開く</a></p>`;
-    } else if (msg) {
-      msg.textContent = 'スコアブックPDFがまだありません。';
-    }
+    if (linksEl) linksEl.innerHTML = `<p><a class="btn-link" href="${esc(url)}" target="_blank" rel="noopener">📖 スコアブックPDFを開く</a></p>`;
+  };
+  const cachedPdfUrl = await getMeta('scorebookPdfUrl', '');
+  if (cachedPdfUrl) showPdfLink(cachedPdfUrl);
+  if (bookPdfBtn) bookPdfBtn.addEventListener('click', async () => {
+    const msg = $('#book-pdf-msg');
+    if (msg) msg.textContent = 'スコアブックを探しています…';
+    let url = '';
+    try {
+      const res = await fetchScoreBook();
+      if (res && res.exists && res.url) {
+        url = res.url;
+        await setMeta('scorebookPdfUrl', url);
+      }
+    } catch (e) { /* 取得できなければ未作成として扱う */ }
+    if (msg) msg.textContent = url ? '' : 'スコアブックPDFがまだありません。';
+    if (url) showPdfLink(url);
   });
   const flush = $('#flush-btn');
   if (flush) flush.addEventListener('click', async () => {
@@ -302,6 +303,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.11', '2026-11-20', ['ホームのスコアブックPDFを、リンクが分かっている場合は最初からリンク表示にして1タップで開けるようにした']],
   ['0.7.10', '2026-11-20', ['変更履歴に「更新を確認」ボタンを追加。更新バナーが出ないときでも、手動で最新版を確認して更新できるようにした']],
   ['0.7.9', '2026-11-20', ['ホームに「スコアブックPDF」ボタンを追加。累積スコアブック（新しいラウンドが先頭）をいつでも開けるようにした']],
   ['0.7.8', '2026-11-20', ['既存のスコアブックPDFが壊れていて読めない場合に、行き詰まらず新規に作り直すよう修正']],
