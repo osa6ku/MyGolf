@@ -18,7 +18,7 @@ function fetchWithTimeout(url, options, ms = 10000) {
     .finally(() => clearTimeout(timer));
 }
 
-async function call(action, payload, method = 'POST', retries = 3, timeoutMs = 10000) {
+async function call(action, payload, method = 'POST', retries = 3, timeoutMs = 10000, extraParams = null) {
   const base = await gasUrl();
   if (!base) throw new Error('GAS URL が未設定です');
   let lastErr = null;
@@ -28,6 +28,7 @@ async function call(action, payload, method = 'POST', retries = 3, timeoutMs = 1
       if (method === 'GET') {
         const u = new URL(base);
         u.searchParams.set('action', action);
+        if (extraParams) for (const [k, v] of Object.entries(extraParams)) u.searchParams.set(k, v);
         res = await fetchWithTimeout(u.toString(), { method: 'GET' }, timeoutMs);
       } else {
         // CORS 回避のため Content-Type: text/plain で JSON 文字列を送る（現行の修正知見を継承）
@@ -125,4 +126,15 @@ export async function saveScorebookPdf(payload) {
 
 export async function saveShareImage(payload) {
   return call('saveShareImage', payload, 'POST', 2, 90000);
+}
+
+// --- 過去のスコア（閲覧専用） ---
+export async function fetchRounds() {
+  const data = await call('getRounds', null, 'GET', 2);
+  return data.rounds || [];
+}
+
+export async function fetchRound(id) {
+  const data = await call('getRound', null, 'GET', 2, 10000, { id });
+  return data.record;
 }

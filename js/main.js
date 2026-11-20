@@ -11,6 +11,7 @@ import { renderRestore, setRestoreHandler } from './ui-restore.js';
 import { exportRoundJson } from './export.js';
 import { generateArtifacts, tomoFromCalc } from './book.js';
 import { renderBooks } from './books.js';
+import { renderHistory } from './history.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const $ = sel => document.querySelector(sel);
@@ -22,6 +23,7 @@ function show(screen) {
   if (el) el.style.display = '';
   if (screen === 'home') renderHome();
   if (screen === 'books') renderBooks($('#books-body'));
+  if (screen === 'history') renderHistory($('#history-body'));
   if (screen === 'hole') { resetHoleModal(); renderHole($('#screen-hole')); }
   if (screen === 'finish') renderFinish();
   if (screen === 'settings') renderSettings();
@@ -55,6 +57,7 @@ async function renderHome() {
       <button type="button" class="big" id="restore-btn">復元</button>
       <button type="button" class="big" id="books-btn">スコアブック</button>
       <button type="button" class="big" id="book-pdf-btn">スコアブックPDF</button>
+      <button type="button" class="big" id="history-btn">過去のスコア</button>
       <p id="book-pdf-msg"></p>
       <div id="book-pdf-links"></div>
     </div>
@@ -98,6 +101,7 @@ async function renderHome() {
   $('#new-btn').addEventListener('click', async () => { await renderSetup($('#screen-setup')); show('setup'); });
   $('#restore-btn').addEventListener('click', async () => { await renderRestore($('#screen-restore')); show('restore'); });
   $('#books-btn').addEventListener('click', () => show('books'));
+  $('#history-btn').addEventListener('click', () => show('history'));
   const bookPdfBtn = $('#book-pdf-btn');
   const showPdfLink = url => {
     if (bookPdfBtn) bookPdfBtn.style.display = 'none';
@@ -303,6 +307,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.12', '2026-11-20', ['「過去のスコア」を追加。保存済みラウンドの一覧から、ホール別のスコアカードを閲覧できるようにした（GAS側の更新も必要）']],
   ['0.7.11', '2026-11-20', ['ホームのスコアブックPDFを、リンクが分かっている場合は最初からリンク表示にして1タップで開けるようにした']],
   ['0.7.10', '2026-11-20', ['変更履歴に「更新を確認」ボタンを追加。更新バナーが出ないときでも、手動で最新版を確認して更新できるようにした']],
   ['0.7.9', '2026-11-20', ['ホームに「スコアブックPDF」ボタンを追加。累積スコアブック（新しいラウンドが先頭）をいつでも開けるようにした']],
