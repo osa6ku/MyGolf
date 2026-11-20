@@ -67,6 +67,23 @@ function scoreRow(label, values, pars, isScore) {
   return `<tr><td class="sc-name">${esc(label)}</td>${tds.join('')}<td class="sc-total">${cell(total)}</td></tr>`;
 }
 
+// OB・ペナ・バンカー用：あったホールだけ数字を出し、0は空白にする（どこで起きたかを見るための表）。
+// その種別が1件も無いラウンドでは行自体を出さない。
+function troubleRow(label, values) {
+  const total = sumRange(values, 0, 17);
+  if (total == null || total === 0) return '';
+  const tds = [];
+  for (let half = 0; half < 2; half++) {
+    for (let i = half * 9; i < half * 9 + 9; i++) {
+      const v = values[i];
+      tds.push(`<td>${v ? v : ''}</td>`);
+    }
+    const sub = sumRange(values, half * 9, half * 9 + 8);
+    tds.push(`<td class="sc-sub">${sub ? sub : ''}</td>`);
+  }
+  return `<tr><td class="sc-name">${esc(label)}</td>${tds.join('')}<td class="sc-total">${total}</td></tr>`;
+}
+
 async function renderDetail(root, id) {
   root.innerHTML = '<div class="card"><p>読み込み中…</p></div>';
   try {
@@ -81,15 +98,27 @@ async function renderDetail(root, id) {
       scoreRow('Par', d.pars, d.pars, false),
       scoreRow('本人', d.selfScores, d.pars, true),
       scoreRow('パット', d.selfPutts, d.pars, false),
+      troubleRow('OB', d.ob || []),
+      troubleRow('ペナ', d.pen || []),
+      troubleRow('バンカー', d.bunker || []),
       ...d.partners.map(p => scoreRow(p.name, p.scores, d.pars, true)),
     ].join('');
-    const ob = rec.ob_pen_bunker || {};
-    const stats = [
-      ob.ob != null ? `OB ${ob.ob}` : null,
-      ob.pen != null ? `ペナ ${ob.pen}` : null,
-      ob.bunker != null ? `バンカー ${ob.bunker}` : null,
-      rec.fw_rate != null ? `FWキープ率 ${(rec.fw_rate * 100).toFixed(1)}%` : null,
-    ].filter(Boolean).join(' / ');
+    // FWキープ率は holes_json.fw から数える。保存済み fw_rate は本アプリ分が「%値（41.7）」で
+    // 旧表示は ×100 して 4170% になっていた。移行ラウンドでは保存値が 0 のこともあり信用しない。
+    // fw が無いラウンドのみ、保存値を桁（1以下なら割合、それ以上なら%値）で吸収して使う。
+    const hj = typeof rec.holes_json === 'string'
+      ? JSON.parse(rec.holes_json || '{}') : (rec.holes_json || {});
+    let fwKeep = 0, fwTotal = 0;
+    (hj.fw || []).forEach(v => {
+      if (v && v !== '-') { fwTotal++; if (v === 'K') fwKeep++; }
+    });
+    let stats = '';
+    if (fwTotal) {
+      stats = `FWキープ率 ${(fwKeep / fwTotal * 100).toFixed(1)}%（${fwKeep}/${fwTotal}）`;
+    } else if (rec.fw_rate != null) {
+      const pct = rec.fw_rate <= 1 ? rec.fw_rate * 100 : rec.fw_rate;
+      stats = `FWキープ率 ${pct.toFixed(1)}%`;
+    }
     const np = Object.entries(d.nearpin || {})
       .map(([h, n]) => `H${h}: ${n}`).join('、');
     const memos = (d.holeLines || [])
