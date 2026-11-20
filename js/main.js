@@ -1,6 +1,6 @@
 // MyGolf 起動・画面遷移・Service Worker 登録
 import { openDb, getMeta, setMeta } from './db.js';
-import { APP_VERSION } from './config.js';
+import { APP_VERSION, ROUND_RECORDS_URL } from './config.js';
 import { getState, setState, loadCurrent, saveNow, scheduleSave, totals, toRoundRecord, clearCurrent, summarize, materializePartnerPars } from './state.js';
 import { gasUrl, setGasUrl, pendingList, flushPending, queuePending, saveRoundNow, fetchScoreBook, saveScorebookPdf, saveShareImage } from './sync.js';
 import { syncMaster, masterCount, getMembers, getPlayedCourses } from './master.js';
@@ -58,6 +58,7 @@ async function renderHome() {
       <button type="button" class="big" id="books-btn">スコアブック</button>
       <button type="button" class="big" id="book-pdf-btn">スコアブックPDF</button>
       <button type="button" class="big" id="history-btn">過去のスコア</button>
+      <button type="button" class="big" id="records-btn">ラウンド記録</button>
       <p id="book-pdf-msg"></p>
       <div id="book-pdf-links"></div>
     </div>
@@ -102,6 +103,7 @@ async function renderHome() {
   $('#restore-btn').addEventListener('click', async () => { await renderRestore($('#screen-restore')); show('restore'); });
   $('#books-btn').addEventListener('click', () => show('books'));
   $('#history-btn').addEventListener('click', () => show('history'));
+  $('#records-btn').addEventListener('click', () => window.open(ROUND_RECORDS_URL, '_blank'));
   const bookPdfBtn = $('#book-pdf-btn');
   const showPdfLink = url => {
     if (bookPdfBtn) bookPdfBtn.style.display = 'none';
@@ -307,6 +309,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.14', '2026-11-21', ['ホームに「ラウンド記録」ボタンを追加。期間別集計・同伴者別・トモダチの分析スペースを開けるようにした']],
   ['0.7.13', '2026-11-20', ['過去のスコア：FWキープ率の表示を修正（ホール別データから算出）。OB・ペナ・バンカーを合計ではなくホール別の行で表示するようにした']],
   ['0.7.12', '2026-11-20', ['「過去のスコア」を追加。保存済みラウンドの一覧から、ホール別のスコアカードを閲覧できるようにした（GAS側の更新も必要）']],
   ['0.7.11', '2026-11-20', ['ホームのスコアブックPDFを、リンクが分かっている場合は最初からリンク表示にして1タップで開けるようにした']],
