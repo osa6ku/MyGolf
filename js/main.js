@@ -87,7 +87,8 @@ async function renderHome() {
       if (out.bookUrl) links.push(`<p><a class="btn-link" href="${esc(out.bookUrl)}" target="_blank" rel="noopener">📖 スコアブックPDF</a></p>`);
       if (out.shareUrl) links.push(`<p><a class="btn-link" href="${esc(out.shareUrl)}" target="_blank" rel="noopener">🖼 共有用スコアカード画像</a></p>`);
       if (linksEl) linksEl.innerHTML = links.join('');
-      if (msg) msg.textContent = 'スコアブックと共有用画像を作成しました。';
+      if (msg) msg.textContent = 'スコアブックと共有用画像を作成しました。' +
+        (out.warnings && out.warnings.length ? `（${out.warnings.join(' / ')}）` : '');
       artifactBtn.style.display = 'none';
     }
   });
@@ -163,7 +164,8 @@ function renderFinish() {
       if (out.bookUrl) links.push(`<p><a class="btn-link" href="${esc(out.bookUrl)}" target="_blank" rel="noopener">📖 スコアブックPDF</a></p>`);
       if (out.shareUrl) links.push(`<p><a class="btn-link" href="${esc(out.shareUrl)}" target="_blank" rel="noopener">🖼 共有用スコアカード画像</a></p>`);
       $('#make-book-links').innerHTML = links.join('');
-      if (msg) msg.textContent = 'スコアブックと共有用画像を作成しました。';
+      if (msg) msg.textContent = 'スコアブックと共有用画像を作成しました。' +
+        (out.warnings && out.warnings.length ? `（${out.warnings.join(' / ')}）` : '');
     }
   });
   $('#save-round-btn').addEventListener('click', async ev => {
@@ -225,7 +227,8 @@ async function renderSaved(record, tomo, duplicate) {
   if (statusEl) {
     statusEl.textContent = out.errors.length
       ? `一部作成できませんでした：${out.errors.join(' / ')}`
-      : 'スコアブックと共有用画像を作成しました。';
+      : 'スコアブックと共有用画像を作成しました。' +
+        (out.warnings && out.warnings.length ? `（${out.warnings.join(' / ')}）` : '');
   }
 }
 
@@ -274,6 +277,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.8', '2026-11-20', ['既存のスコアブックPDFが壊れていて読めない場合に、行き詰まらず新規に作り直すよう修正']],
   ['0.7.7', '2026-11-20', ['終了画面に「スコアブックを作成」ボタンを追加。保存済み・復元したラウンドでもスコアブックと共有用画像を作成できるようにした']],
   ['0.7.6', '2026-11-20', ['スコアブック作成の通信リトライを強化（弱電波で失敗しにくく）。作成に失敗したラウンドは、ホームから後で作成し直せるようにした']],
   ['0.7.5', '2026-11-20', ['スコアブック（衛星写真つき）をホームのボタンから開けるようにした。ファイルの置き場所はGoogleドライブのまま']],

@@ -543,7 +543,7 @@ function canvasToBytes(cv, type, quality) {
 // onStatus(text) で進捗を通知。戻り値 {bookUrl, shareUrl, errors[]}
 export async function generateArtifacts(record, tomo, api, onStatus) {
   const data = buildBookData(record, tomo);
-  const out = { bookUrl: null, shareUrl: null, errors: [] };
+  const out = { bookUrl: null, shareUrl: null, errors: [], warnings: [] };
   const status = t => { if (onStatus) onStatus(t); };
 
   // 共有用画像
@@ -576,14 +576,22 @@ export async function generateArtifacts(record, tomo, api, onStatus) {
     let mergedBytes = pageBytes;
     let existingFileId = null;
     if (existing && existing.exists && existing.pdfBase64) {
-      status('スコアブックに結合中…');
-      const bookDoc = await PDFDocument.load(base64ToBytes(existing.pdfBase64));
-      const newDoc = await PDFDocument.load(pageBytes);
-      const [copied] = await bookDoc.copyPages(newDoc, [0]);
-      bookDoc.insertPage(0, copied);
-      mergedBytes = await bookDoc.save();
-      existingFileId = existing.fileId || null;
-      out.bookUrl = existing.url || null; // 保存失敗時のフォールバック表示用
+      try {
+        status('スコアブックに結合中…');
+        const bookDoc = await PDFDocument.load(base64ToBytes(existing.pdfBase64));
+        const newDoc = await PDFDocument.load(pageBytes);
+        const [copied] = await bookDoc.copyPages(newDoc, [0]);
+        bookDoc.insertPage(0, copied);
+        mergedBytes = await bookDoc.save();
+        existingFileId = existing.fileId || null;
+        out.bookUrl = existing.url || null; // 保存失敗時のフォールバック表示用
+      } catch (parseErr) {
+        // v0.7.8: 既存ブックが壊れていて読めない場合は、行き詰まらず新規作成として続行する
+        // （保存時に同名ファイルへ上書きされるので自己修復する）
+        out.warnings.push('既存のスコアブックが読めなかったため、新規に作り直しました');
+        mergedBytes = pageBytes;
+        existingFileId = null;
+      }
     }
     status('スコアブックを保存中…');
     const saved = await api.saveScorebookPdf({
