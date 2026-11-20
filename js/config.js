@@ -1,13 +1,13 @@
 // MyGolf 設定・定数
 export const APP_NAME = 'MyGolf';
-export const APP_VERSION = '0.7.14';
+export const APP_VERSION = '0.7.15';
 
 // スコアブック（Drive版HTML）閲覧用 GAS の URL（2026-11-20 v0.7.5）。
 // 本体ファイルは Google Drive に置き、この GAS が一覧と中身を橋渡しする。
 export const SCOREBOOK_GAS_URL = 'https://script.google.com/macros/s/AKfycbzjYZs_zSnAcUvVp0vULOVbQuW6e8yy-Q2iIosggUziZ04wwjTjt549HTsSVzv1IP00Og/exec';
 
-// ラウンド記録スペース（Muse ライブラリ）の URL（2026-11-21 v0.7.14）。ホームのボタンから開く。
-export const ROUND_RECORDS_URL = 'https://muse.ai/library/artifacts/goruhu-raundoji-lu';
+// ラウンド記録スプレッドシートの URL（2026-11-21 v0.7.15 でスペースから移行）。ホームのボタンから開く。
+export const ROUND_RECORDS_URL = 'https://docs.google.com/spreadsheets/d/1q8FofMWpe4mQd_3lAIghSWmJP_DdBjv0165mH9yhyY4/edit';
 export const DB_NAME = 'mygolf';
 export const DB_VERSION = 1;
 
