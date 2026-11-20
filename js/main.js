@@ -302,6 +302,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.10', '2026-11-20', ['変更履歴に「更新を確認」ボタンを追加。更新バナーが出ないときでも、手動で最新版を確認して更新できるようにした']],
   ['0.7.9', '2026-11-20', ['ホームに「スコアブックPDF」ボタンを追加。累積スコアブック（新しいラウンドが先頭）をいつでも開けるようにした']],
   ['0.7.8', '2026-11-20', ['既存のスコアブックPDFが壊れていて読めない場合に、行き詰まらず新規に作り直すよう修正']],
   ['0.7.7', '2026-11-20', ['終了画面に「スコアブックを作成」ボタンを追加。保存済み・復元したラウンドでもスコアブックと共有用画像を作成できるようにした']],
@@ -355,9 +356,89 @@ function openChangelog() {
     CHANGELOG.map(([v, d, notes]) =>
       `<div class="cl-ver">v${esc(v)} <span class="cl-date">${esc(d)}</span></div><ul class="cl-list">` +
       notes.map(n => `<li>${esc(n)}</li>`).join('') + `</ul>`).join('') +
+    `<p><button type="button" id="update-check-btn">更新を確認</button></p>` +
+    `<p id="update-check-msg"></p>` +
     `<button type="button" class="primary modal-close">閉じる</button></div>`;
   ov.addEventListener('click', e => { if (e.target === ov || e.target.closest('.modal-close')) ov.remove(); });
   document.body.appendChild(ov);
+  const btn = ov.querySelector('#update-check-btn');
+  const msg = ov.querySelector('#update-check-msg');
+  let pendingVersion = null;
+  btn.addEventListener('click', async () => {
+    if (pendingVersion) { applyUpdate(); return; }
+    btn.disabled = true;
+    msg.textContent = '確認中…';
+    const r = await checkForUpdate(true);
+    btn.disabled = false;
+    if (r.status === 'newer') {
+      pendingVersion = r.version;
+      msg.textContent = `新しいバージョン v${r.version} があります`;
+      btn.textContent = '更新する';
+    } else if (r.status === 'latest') {
+      msg.textContent = `最新です（v${APP_VERSION}）`;
+    } else {
+      msg.textContent = '確認できませんでした（通信状態を確認してください）';
+    }
+  });
+}
+
+// バージョン確認：PWA は再開時にページを読み直さないため、サーバーの version.json と
+// 明示的に比べないと更新に気づけない。新しければバナーを出し、タップで更新する。
+let lastVersionCheck = 0;
+async function checkForUpdate(force = false) {
+  const now = Date.now();
+  if (!force && now - lastVersionCheck < 10 * 60 * 1000) return { status: 'throttled' };
+  lastVersionCheck = now;
+  try {
+    const res = await fetch('./version.json', { cache: 'no-store' });
+    if (!res.ok) return { status: 'error' };
+    const data = await res.json();
+    if (data.version && data.version !== APP_VERSION) {
+      // 新 SW のインストールを先に走らせておく（「更新する」を押した時点で waiting にしておく）
+      navigator.serviceWorker.getRegistration().then(r => { if (r) r.update().catch(() => {}); }).catch(() => {});
+      showUpdateBanner(data.version);
+      return { status: 'newer', version: data.version };
+    }
+    return { status: 'latest' };
+  } catch (_) { /* オフライン時は何もしない */
+    return { status: 'error' };
+  }
+}
+function showUpdateBanner(v) {
+  if ($('#update-banner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'update-banner';
+  bar.className = 'banner';
+  bar.innerHTML = `新しいバージョン v${esc(v)} があります <button type="button" id="update-apply" class="small">更新する</button>`;
+  document.body.prepend(bar);
+  $('#update-apply').addEventListener('click', applyUpdate);
+}
+async function applyUpdate() {
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg) {
+      let reloaded = false;
+      const reloadOnce = () => { if (!reloaded) { reloaded = true; location.reload(); } };
+      navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
+      await reg.update().catch(() => {});
+      const sw = reg.waiting || reg.installing;
+      if (sw) {
+        // インストール完了（waiting 化）を待ってから有効化する。即チェックすると
+        // まだ installing で waiting が無く、古い版のまま再読み込みしてしまう。
+        const target = reg.waiting || sw;
+        if (target.state === 'installed') {
+          target.postMessage('SKIP_WAITING');
+        } else {
+          target.addEventListener('statechange', () => {
+            if (target.state === 'installed') target.postMessage('SKIP_WAITING');
+          });
+        }
+        setTimeout(reloadOnce, 6000); // 切り替わらない場合の保険
+        return;
+      }
+    }
+  } catch (_) { /* そのまま再読み込みする */ }
+  location.reload();
 }
 
 async function init() {
@@ -406,60 +487,6 @@ async function init() {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
-  // バージョン確認：PWA は再開時にページを読み直さないため、サーバーの version.json と
-  // 明示的に比べないと更新に気づけない。新しければバナーを出し、タップで更新する。
-  let lastVersionCheck = 0;
-  async function checkForUpdate() {
-    const now = Date.now();
-    if (now - lastVersionCheck < 10 * 60 * 1000) return;
-    lastVersionCheck = now;
-    try {
-      const res = await fetch('./version.json', { cache: 'no-store' });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.version && data.version !== APP_VERSION) {
-        // 新 SW のインストールを先に走らせておく（「更新する」を押した時点で waiting にしておく）
-        navigator.serviceWorker.getRegistration().then(r => { if (r) r.update().catch(() => {}); }).catch(() => {});
-        showUpdateBanner(data.version);
-      }
-    } catch (_) { /* オフライン時は何もしない */ }
-  }
-  function showUpdateBanner(v) {
-    if ($('#update-banner')) return;
-    const bar = document.createElement('div');
-    bar.id = 'update-banner';
-    bar.className = 'banner';
-    bar.innerHTML = `新しいバージョン v${esc(v)} があります <button type="button" id="update-apply" class="small">更新する</button>`;
-    document.body.prepend(bar);
-    $('#update-apply').addEventListener('click', applyUpdate);
-  }
-  async function applyUpdate() {
-    try {
-      const reg = await navigator.serviceWorker.getRegistration();
-      if (reg) {
-        let reloaded = false;
-        const reloadOnce = () => { if (!reloaded) { reloaded = true; location.reload(); } };
-        navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
-        await reg.update().catch(() => {});
-        const sw = reg.waiting || reg.installing;
-        if (sw) {
-          // インストール完了（waiting 化）を待ってから有効化する。即チェックすると
-          // まだ installing で waiting が無く、古い版のまま再読み込みしてしまう。
-          const target = reg.waiting || sw;
-          if (target.state === 'installed') {
-            target.postMessage('SKIP_WAITING');
-          } else {
-            target.addEventListener('statechange', () => {
-              if (target.state === 'installed') target.postMessage('SKIP_WAITING');
-            });
-          }
-          setTimeout(reloadOnce, 6000); // 切り替わらない場合の保険
-          return;
-        }
-      }
-    } catch (_) { /* そのまま再読み込みする */ }
-    location.reload();
-  }
   checkForUpdate();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
 

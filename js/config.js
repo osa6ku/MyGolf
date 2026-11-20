@@ -1,6 +1,6 @@
 // MyGolf 設定・定数
 export const APP_NAME = 'MyGolf';
-export const APP_VERSION = '0.7.9';
+export const APP_VERSION = '0.7.10';
 
 // スコアブック（Drive版HTML）閲覧用 GAS の URL（2026-11-20 v0.7.5）。
 // 本体ファイルは Google Drive に置き、この GAS が一覧と中身を橋渡しする。
