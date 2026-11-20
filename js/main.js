@@ -127,10 +127,45 @@ function renderFinish() {
       <button type="button" class="primary" id="save-round-btn">確定保存する</button>
       <button type="button" id="export-btn">JSON書き出し</button>
       <button type="button" id="back-hole-btn">ホール入力に戻る</button>
+      <button type="button" id="make-book-btn">スコアブックを作成</button>
+      <p class="hint">保存済みラウンド（復元したラウンドなど）のスコアブック／共有用画像を作成します。すでに作成済みの場合は押さないでください（ページが重複します）。</p>
+      <p id="make-book-msg"></p>
+      <div id="make-book-links"></div>
       <p id="finish-msg"></p>
     </div>`;
   $('#back-hole-btn').addEventListener('click', () => show('hole'));
   $('#export-btn').addEventListener('click', () => exportRoundJson(s));
+  $('#make-book-btn').addEventListener('click', async ev => {
+    const btn = ev.currentTarget;
+    if (btn.disabled) return;
+    btn.disabled = true;
+    const msg = $('#make-book-msg');
+    const record = toRoundRecord(s);
+    const tomoCalc = calcTomodachi(s);
+    const npByHole = {};
+    if (s.game && s.game.nearpin) {
+      Object.entries(s.game.nearpin).forEach(([h, n]) => { npByHole[Number(String(h).replace('H', ''))] = n; });
+    }
+    const tomo = tomoCalc ? tomoFromCalc(tomoCalc, s.game ? s.game.order : null, npByHole) : null;
+    const out = await generateArtifacts(record, tomo,
+      { fetchScoreBook, saveScorebookPdf, saveShareImage },
+      t => { if (msg) msg.textContent = t; });
+    if (out.errors.length) {
+      await setMeta('pendingArtifact', { record, tomo });
+      if (msg) msg.textContent = `一部作成できませんでした：${out.errors.join(' / ')}（ホームからも再作成できます）`;
+      btn.disabled = false;
+    } else {
+      const pendingJob = await getMeta('pendingArtifact', null);
+      if (pendingJob && pendingJob.record && pendingJob.record.round_id === record.round_id) {
+        await setMeta('pendingArtifact', '');
+      }
+      const links = [];
+      if (out.bookUrl) links.push(`<p><a class="btn-link" href="${esc(out.bookUrl)}" target="_blank" rel="noopener">📖 スコアブックPDF</a></p>`);
+      if (out.shareUrl) links.push(`<p><a class="btn-link" href="${esc(out.shareUrl)}" target="_blank" rel="noopener">🖼 共有用スコアカード画像</a></p>`);
+      $('#make-book-links').innerHTML = links.join('');
+      if (msg) msg.textContent = 'スコアブックと共有用画像を作成しました。';
+    }
+  });
   $('#save-round-btn').addEventListener('click', async ev => {
     const btn = ev.currentTarget;
     if (btn.disabled) return;
@@ -239,6 +274,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.7', '2026-11-20', ['終了画面に「スコアブックを作成」ボタンを追加。保存済み・復元したラウンドでもスコアブックと共有用画像を作成できるようにした']],
   ['0.7.6', '2026-11-20', ['スコアブック作成の通信リトライを強化（弱電波で失敗しにくく）。作成に失敗したラウンドは、ホームから後で作成し直せるようにした']],
   ['0.7.5', '2026-11-20', ['スコアブック（衛星写真つき）をホームのボタンから開けるようにした。ファイルの置き場所はGoogleドライブのまま']],
   ['0.7.4', '2026-11-19', ['iPhone（ホーム画面アプリ）で画面上部がステータスバーに重なり、更新バナーなどが押せない問題を修正']],
