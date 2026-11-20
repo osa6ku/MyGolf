@@ -10,6 +10,7 @@ import { calcTomodachi } from './game.js';
 import { renderRestore, setRestoreHandler } from './ui-restore.js';
 import { exportRoundJson } from './export.js';
 import { generateArtifacts, tomoFromCalc } from './book.js';
+import { renderBooks } from './books.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const $ = sel => document.querySelector(sel);
@@ -20,6 +21,7 @@ function show(screen) {
   const el = $(`#screen-${screen}`);
   if (el) el.style.display = '';
   if (screen === 'home') renderHome();
+  if (screen === 'books') renderBooks($('#books-body'));
   if (screen === 'hole') { resetHoleModal(); renderHole($('#screen-hole')); }
   if (screen === 'finish') renderFinish();
   if (screen === 'settings') renderSettings();
@@ -43,6 +45,7 @@ async function renderHome() {
     <div class="card">
       <button type="button" class="primary big" id="new-btn">新規ラウンド</button>
       <button type="button" class="big" id="restore-btn">復元</button>
+      <button type="button" class="big" id="books-btn">スコアブック</button>
     </div>
     <div class="card status">
       <h3>保存ステータス</h3>
@@ -60,6 +63,7 @@ async function renderHome() {
   });
   $('#new-btn').addEventListener('click', async () => { await renderSetup($('#screen-setup')); show('setup'); });
   $('#restore-btn').addEventListener('click', async () => { await renderRestore($('#screen-restore')); show('restore'); });
+  $('#books-btn').addEventListener('click', () => show('books'));
   const flush = $('#flush-btn');
   if (flush) flush.addEventListener('click', async () => {
     const results = await flushPending();
@@ -196,6 +200,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.5', '2026-11-20', ['スコアブック（衛星写真つき）をホームのボタンから開けるようにした。ファイルの置き場所はGoogleドライブのまま']],
   ['0.7.4', '2026-11-19', ['iPhone（ホーム画面アプリ）で画面上部がステータスバーに重なり、更新バナーなどが押せない問題を修正']],
   ['0.7.3', '2026-11-19', ['結果ボタン（◯・左・右など）を青系に色分けし、番手と見分けやすくした', '復元タブのアイコンを📥に変更']],
   ['0.7.2', '2026-11-18', ['バージョン表示をボタンにし、タップでこの変更履歴を開けるようにした']],
