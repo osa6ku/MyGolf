@@ -1,5 +1,5 @@
 // MyGolf 起動・画面遷移・Service Worker 登録
-import { openDb, getMeta } from './db.js';
+import { openDb, getMeta, setMeta } from './db.js';
 import { APP_VERSION } from './config.js';
 import { getState, setState, loadCurrent, saveNow, scheduleSave, totals, toRoundRecord, clearCurrent, summarize, materializePartnerPars } from './state.js';
 import { gasUrl, setGasUrl, pendingList, flushPending, queuePending, saveRoundNow, fetchScoreBook, saveScorebookPdf, saveShareImage } from './sync.js';
@@ -35,12 +35,20 @@ async function renderHome() {
   const pending = await pendingList();
   const mc = await masterCount();
   const sum = s ? summarize(s) : null;
+  const artifactJob = await getMeta('pendingArtifact', null);
   $('#home-body').innerHTML = `
     ${sum ? `<div class="card resume">
       <h3>進行中のラウンド</h3>
       <p>${esc(sum.course_name)}（${esc(sum.date)}）/ 現在 ${sum.currentHole}H / 入力済み ${sum.playedHoles}H / スコア計 ${sum.scoreSoFar}</p>
       <button type="button" class="primary" id="resume-btn">再開する</button>
       <button type="button" id="discard-btn">破棄する</button>
+    </div>` : ''}
+    ${artifactJob && artifactJob.record ? `<div class="card">
+      <h3>スコアブック未作成のラウンド</h3>
+      <p>${esc(artifactJob.record.course_name)}（${esc(artifactJob.record.date)}）のスコアブック／共有用画像が未作成です。電波の良い場所で作成してください。</p>
+      <button type="button" class="primary" id="artifact-btn">スコアブックを作成する</button>
+      <p id="artifact-home-msg"></p>
+      <div id="artifact-home-links"></div>
     </div>` : ''}
     <div class="card">
       <button type="button" class="primary big" id="new-btn">新規ラウンド</button>
@@ -60,6 +68,28 @@ async function renderHome() {
   const discard = $('#discard-btn');
   if (discard) discard.addEventListener('click', async () => {
     if (confirm('進行中のラウンドを破棄しますか？')) { await clearCurrent(); renderHome(); }
+  });
+  const artifactBtn = $('#artifact-btn');
+  if (artifactBtn) artifactBtn.addEventListener('click', async () => {
+    if (artifactBtn.disabled) return;
+    artifactBtn.disabled = true;
+    const msg = $('#artifact-home-msg');
+    const linksEl = $('#artifact-home-links');
+    const out = await generateArtifacts(artifactJob.record, artifactJob.tomo,
+      { fetchScoreBook, saveScorebookPdf, saveShareImage },
+      t => { if (msg) msg.textContent = t; });
+    if (out.errors.length) {
+      if (msg) msg.textContent = `一部作成できませんでした：${out.errors.join(' / ')}`;
+      artifactBtn.disabled = false;
+    } else {
+      await setMeta('pendingArtifact', '');
+      const links = [];
+      if (out.bookUrl) links.push(`<p><a class="btn-link" href="${esc(out.bookUrl)}" target="_blank" rel="noopener">📖 スコアブックPDF</a></p>`);
+      if (out.shareUrl) links.push(`<p><a class="btn-link" href="${esc(out.shareUrl)}" target="_blank" rel="noopener">🖼 共有用スコアカード画像</a></p>`);
+      if (linksEl) linksEl.innerHTML = links.join('');
+      if (msg) msg.textContent = 'スコアブックと共有用画像を作成しました。';
+      artifactBtn.style.display = 'none';
+    }
   });
   $('#new-btn').addEventListener('click', async () => { await renderSetup($('#screen-setup')); show('setup'); });
   $('#restore-btn').addEventListener('click', async () => { await renderRestore($('#screen-restore')); show('restore'); });
@@ -144,6 +174,15 @@ async function renderSaved(record, tomo, duplicate) {
   const out = await generateArtifacts(record, tomo,
     { fetchScoreBook, saveScorebookPdf, saveShareImage },
     t => { if (statusEl) statusEl.textContent = t; });
+  // v0.7.6: 作成に失敗したら材料を残し、ホームから再作成できるようにする（弱電波対策）
+  if (out.errors.length) {
+    await setMeta('pendingArtifact', { record, tomo });
+  } else {
+    const pendingJob = await getMeta('pendingArtifact', null);
+    if (pendingJob && pendingJob.record && pendingJob.record.round_id === record.round_id) {
+      await setMeta('pendingArtifact', '');
+    }
+  }
   const links = [];
   if (out.bookUrl) links.push(`<p><a class="btn-link" href="${esc(out.bookUrl)}" target="_blank" rel="noopener">📖 スコアブックPDF</a></p>`);
   if (out.shareUrl) links.push(`<p><a class="btn-link" href="${esc(out.shareUrl)}" target="_blank" rel="noopener">🖼 共有用スコアカード画像</a></p>`);
@@ -200,6 +239,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.6', '2026-11-20', ['スコアブック作成の通信リトライを強化（弱電波で失敗しにくく）。作成に失敗したラウンドは、ホームから後で作成し直せるようにした']],
   ['0.7.5', '2026-11-20', ['スコアブック（衛星写真つき）をホームのボタンから開けるようにした。ファイルの置き場所はGoogleドライブのまま']],
   ['0.7.4', '2026-11-19', ['iPhone（ホーム画面アプリ）で画面上部がステータスバーに重なり、更新バナーなどが押せない問題を修正']],
   ['0.7.3', '2026-11-19', ['結果ボタン（◯・左・右など）を青系に色分けし、番手と見分けやすくした', '復元タブのアイコンを📥に変更']],

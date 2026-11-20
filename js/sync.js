@@ -112,15 +112,17 @@ export async function saveRoundNow(record) {
   return call('saveRound', { round: record });
 }
 
-// --- スコアブック / 共有画像（大きな base64 を運ぶため長タイムアウト・リトライ1回） ---
+// --- スコアブック / 共有画像（大きな base64 を運ぶため長タイムアウト） ---
+// v0.7.6: 弱電波（コースの4G）で "Failed to fetch" になった実績を受け、リトライを付ける。
+// saveScorebookPDF は結合済みPDFの全量上書きなので、同じ payload の再送は安全。
 export async function fetchScoreBook() {
-  return call('getScoreBook', null, 'GET', 1, 120000);
+  return call('getScoreBook', null, 'GET', 3, 120000);
 }
 
 export async function saveScorebookPdf(payload) {
-  return call('saveScorebookPDF', payload, 'POST', 1, 180000);
+  return call('saveScorebookPDF', payload, 'POST', 2, 180000);
 }
 
 export async function saveShareImage(payload) {
-  return call('saveShareImage', payload, 'POST', 1, 90000);
+  return call('saveShareImage', payload, 'POST', 2, 90000);
 }
