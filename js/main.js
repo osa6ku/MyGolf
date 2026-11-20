@@ -54,6 +54,9 @@ async function renderHome() {
       <button type="button" class="primary big" id="new-btn">新規ラウンド</button>
       <button type="button" class="big" id="restore-btn">復元</button>
       <button type="button" class="big" id="books-btn">スコアブック</button>
+      <button type="button" class="big" id="book-pdf-btn">スコアブックPDF</button>
+      <p id="book-pdf-msg"></p>
+      <div id="book-pdf-links"></div>
     </div>
     <div class="card status">
       <h3>保存ステータス</h3>
@@ -95,6 +98,27 @@ async function renderHome() {
   $('#new-btn').addEventListener('click', async () => { await renderSetup($('#screen-setup')); show('setup'); });
   $('#restore-btn').addEventListener('click', async () => { await renderRestore($('#screen-restore')); show('restore'); });
   $('#books-btn').addEventListener('click', () => show('books'));
+  $('#book-pdf-btn').addEventListener('click', async () => {
+    const msg = $('#book-pdf-msg');
+    const linksEl = $('#book-pdf-links');
+    let url = await getMeta('scorebookPdfUrl', '');
+    if (!url) {
+      if (msg) msg.textContent = 'スコアブックを探しています…';
+      try {
+        const res = await fetchScoreBook();
+        if (res && res.exists && res.url) {
+          url = res.url;
+          await setMeta('scorebookPdfUrl', url);
+        }
+      } catch (e) { /* 取得できなければ未作成として扱う */ }
+    }
+    if (msg) msg.textContent = '';
+    if (url) {
+      if (linksEl) linksEl.innerHTML = `<p><a class="btn-link" href="${esc(url)}" target="_blank" rel="noopener">📖 スコアブックPDFを開く</a></p>`;
+    } else if (msg) {
+      msg.textContent = 'スコアブックPDFがまだありません。';
+    }
+  });
   const flush = $('#flush-btn');
   if (flush) flush.addEventListener('click', async () => {
     const results = await flushPending();
@@ -211,6 +235,7 @@ async function renderSaved(record, tomo, duplicate) {
   const out = await generateArtifacts(record, tomo,
     { fetchScoreBook, saveScorebookPdf, saveShareImage },
     t => { if (statusEl) statusEl.textContent = t; });
+  if (out.bookUrl) await setMeta('scorebookPdfUrl', out.bookUrl);
   // v0.7.6: 作成に失敗したら材料を残し、ホームから再作成できるようにする（弱電波対策）
   if (out.errors.length) {
     await setMeta('pendingArtifact', { record, tomo });
@@ -277,6 +302,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.9', '2026-11-20', ['ホームに「スコアブックPDF」ボタンを追加。累積スコアブック（新しいラウンドが先頭）をいつでも開けるようにした']],
   ['0.7.8', '2026-11-20', ['既存のスコアブックPDFが壊れていて読めない場合に、行き詰まらず新規に作り直すよう修正']],
   ['0.7.7', '2026-11-20', ['終了画面に「スコアブックを作成」ボタンを追加。保存済み・復元したラウンドでもスコアブックと共有用画像を作成できるようにした']],
   ['0.7.6', '2026-11-20', ['スコアブック作成の通信リトライを強化（弱電波で失敗しにくく）。作成に失敗したラウンドは、ホームから後で作成し直せるようにした']],
