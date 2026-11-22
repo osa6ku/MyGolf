@@ -65,7 +65,7 @@ function openGoogleSheet(rawUrl, options = {}) {
     return;
   }
 
-  // 5. モバイル閲覧モード（デフォルト：キャンバスエラー回避）
+  // 5. モバイル閲覧モード
   if (isAndroid) {
     // AndroidのPWAから window.open すると埋め込みブラウザ (Custom Tab) で開き、
     // Canvasタブが「埋め込みサイトでは利用不可」になるため、intent で Chrome 本体を開く。
@@ -75,6 +75,12 @@ function openGoogleSheet(rawUrl, options = {}) {
     window.location.href =
       `intent://docs.google.com${editPath}#Intent;scheme=https;` +
       `package=com.android.chrome;S.browser_fallback_url=${fallback};end`;
+    return;
+  }
+  if (isIOS && mode === 'view') {
+    // htmlview は読み取り専用で、フィルターやタブ移動が使えないため編集画面で開く
+    const editUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit${gidHash}`;
+    window.open(editUrl, '_blank', 'noopener,noreferrer');
     return;
   }
   const viewPath = mode === 'preview' ? 'preview' : 'htmlview';
@@ -375,6 +381,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.28', '2026-11-22', ['「ラウンド記録」ボタン：iPhoneでも編集画面で開くよう変更した。閲覧用表示（htmlview）は読み取り専用で、フィルターやタブ移動が使えないため']],
   ['0.7.27', '2026-11-22', ['「ラウンド記録」ボタンの飛び先をサマリーに戻した。CanvasダッシュボードはMacで見る専用にした']],
   ['0.7.26', '2026-11-22', ['「ラウンド記録」ボタン：Androidでは埋め込みブラウザでCanvasが表示できないため、Chrome本体で開くよう変更した']],
   ['0.7.25', '2026-11-22', ['「ラウンド記録」ボタンの開き方をOS別に最適化。スマホでは閲覧用（htmlview）で開き、Canvasダッシュボードが開けない問題を回避した']],
