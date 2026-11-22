@@ -16,6 +16,61 @@ import { renderHistory } from './history.js';
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const $ = sel => document.querySelector(sel);
 
+/**
+ * PWAからGoogleスプレッドシートをOS別に最適な方法で開く
+ * @param {string} rawUrl - 元のスプレッドシートURL
+ * @param {Object} [options]
+ * @param {'view'|'preview'|'app'} [options.mode='view'] - 'view': htmlview(推奨), 'preview': preview, 'app': アプリ起動
+ * @param {boolean} [options.keepGid=true] - 特定タブ(gid)を維持するか（グラフシート等でエラーになる場合はfalse）
+ */
+function openGoogleSheet(rawUrl, options = {}) {
+  const { mode = 'view', keepGid = true } = options;
+
+  // 1. URLからスプレッドシートIDとgidを抽出
+  const idMatch = rawUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (!idMatch) {
+    // 想定外のURL形式ならそのまま新規タブで開く
+    window.open(rawUrl, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  const sheetId = idMatch[1];
+  const gidMatch = rawUrl.match(/gid=(\d+)/);
+  const gid = keepGid && gidMatch ? gidMatch[1] : null;
+  const gidHash = gid ? `#gid=${gid}` : '';
+
+  // 2. OS判別（iPadOSのデスクトップUAにも対応）
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/i.test(ua);
+  const isMobile = isIOS || isAndroid;
+
+  // 3. PC（Mac/Windows）は通常の編集画面を新しいタブで開く
+  if (!isMobile) {
+    const pcUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit${gidHash}`;
+    window.open(pcUrl, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  // 4. モバイル端末の分岐
+  if (mode === 'app') {
+    // アプリ起動モード
+    const editUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit${gidHash}`;
+    if (isIOS) {
+      // iOS: URLスキームでGoogleスプレッドシートアプリを直接起動
+      window.location.href = `googlesheets://${editUrl}`;
+    } else {
+      // Android: 通常のHTTPSリンクを外部で開くとOS側でアプリにルーティングされる
+      window.open(editUrl, '_blank', 'noopener,noreferrer');
+    }
+    return;
+  }
+
+  // 5. モバイル閲覧モード（デフォルト：キャンバスエラー回避）
+  const viewPath = mode === 'preview' ? 'preview' : 'htmlview';
+  const mobileUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/${viewPath}${gidHash}`;
+  window.open(mobileUrl, '_blank', 'noopener,noreferrer');
+}
+
 function show(screen) {
   document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === screen));
   document.querySelectorAll('.screen').forEach(el => { el.style.display = 'none'; });
@@ -103,7 +158,7 @@ async function renderHome() {
   $('#restore-btn').addEventListener('click', async () => { await renderRestore($('#screen-restore')); show('restore'); });
   $('#books-btn').addEventListener('click', () => show('books'));
   $('#history-btn').addEventListener('click', () => show('history'));
-  $('#records-btn').addEventListener('click', () => window.open(ROUND_RECORDS_URL, '_blank'));
+  $('#records-btn').addEventListener('click', () => openGoogleSheet(ROUND_RECORDS_URL));
   const bookPdfBtn = $('#book-pdf-btn');
   const showPdfLink = url => {
     if (bookPdfBtn) bookPdfBtn.style.display = 'none';
@@ -309,6 +364,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.25', '2026-11-22', ['「ラウンド記録」ボタンの開き方をOS別に最適化。スマホでは閲覧用（htmlview）で開き、Canvasダッシュボードが開けない問題を回避した']],
   ['0.7.24', '2026-11-22', ['「ラウンド記録」ボタンのリンク先を、スプレッドシートのCanvasダッシュボード（ゴルフラウンド分析ダッシュボード）に直接開くよう変更した']],
   ['0.7.23', '2026-11-22', ['過去のスコア：トモダチ結果が出ていなかったのを修正。移行ラウンドは保存済みポイントを、MyGolfのラウンドは打順とスコアから再計算して表示する']],
   ['0.7.22', '2026-11-22', ['過去のスコア：詳細にトモダチ結果（ホール別ポイント）を追加した']],
