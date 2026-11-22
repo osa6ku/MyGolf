@@ -308,8 +308,7 @@ table.scorecard th { background: #dcefe1; }
 .books-load { position: absolute; inset: 0; top: 60px; display: flex; align-items: center; justify-content: center; color: #666; font-size: 14px; background: #fff; }
 .books-frame { flex: 1; border: none; width: 100%; }
 
-/* v0.7.18: iPhoneで上部がモヤっと白み、下部に白い帯が出る問題への対応。
-   ページの外側（ビューポート外・オーバースクロール域）の地色を濃緑にして白帯を消し、
-   ステータスバー領域には固定帯でヘッダーと同じグラデーションを敷く */
-html { background: #0d5c26; }
-body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: linear-gradient(135deg, var(--green-dark), var(--green) 60%, var(--green-bright)); z-index: 30; pointer-events: none; }
+/* v0.7.18で入れた画面外側の濃緑とステータスバー帯は効果がなく、短い画面に濃緑の
+   空白が出る副作用があったため v0.7.20 で撤回。上部のモヤはiOS側の表示として
+   受け入れる（2026-11-22 本人判断）。地色は本文とそろえる */
+html { background: #f0f5f0; }
