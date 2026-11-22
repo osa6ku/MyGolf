@@ -1,7 +1,8 @@
 // 過去のスコア：保存済みラウンドの一覧と、読み取り専用のスコアカード表示。
 // データは GAS の getRounds / getRound から取得する（閲覧専用、現在のラウンドには触らない）。
 import { fetchRounds, fetchRound } from './sync.js';
-import { buildBookData } from './book.js';
+import { buildBookData, tomoFromCalc } from './book.js';
+import { calcTomodachi } from './game.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -50,6 +51,47 @@ function sumRange(arr, from, to) {
 
 const cell = v => (v == null ? '—' : v);
 
+function parseJsonField(v, fallback) {
+  if (v == null) return fallback;
+  if (typeof v === 'string') {
+    try { return JSON.parse(v); } catch { return fallback; }
+  }
+  return v;
+}
+
+// 保存済みラウンドのトモダチ結果を用意する。
+// 移行ラウンドは game_json にポイントが保存済みなのでそれを使い、
+// MyGolf のラウンド（打順とニアピンだけが保存される）はスコアから再計算する。
+function tomoForRecord(rec, d) {
+  const game = parseJsonField(rec.game_json, null);
+  if (!game) return null;
+  if (Array.isArray(game.my_points)) {
+    const pp = game.partner_points || {};
+    const rows = [{ name: '桑木修', pts: game.my_points, total: game.my_total_points ?? null }];
+    for (const p of d.partners) {
+      const e = pp[p.name];
+      if (e && Array.isArray(e.points)) rows.push({ name: p.name, pts: e.points, total: e.total ?? null });
+    }
+    return rows.length === 4 ? { rows } : null;
+  }
+  if (game.initial_order) {
+    const order = String(game.initial_order).split(',')
+      .map(x => x.trim()).filter(Boolean)
+      .map(x => { const m = x.match(/^\d+\s*[:：]\s*(.+)$/); return m ? m[1].trim() : x; });
+    const npObj = {};
+    Object.entries(d.nearpin || {}).forEach(([h, n]) => { npObj['H' + h] = n; });
+    const hj = parseJsonField(rec.holes_json, {}) || {};
+    const calc = calcTomodachi({
+      scores: hj.scores || [],
+      pars: hj.pars || [],
+      partners: d.partners.map(p => ({ name: p.name, scores: p.scores || [] })),
+      game: { order, nearpin: npObj },
+    });
+    return calc ? tomoFromCalc(calc, order, d.nearpin) : null;
+  }
+  return null;
+}
+
 function scoreRow(label, values, pars, isScore) {
   const tds = [];
   for (let half = 0; half < 2; half++) {
@@ -90,6 +132,7 @@ async function renderDetail(root, id) {
     const rec = await fetchRound(id);
     if (!rec) throw new Error('ラウンドが見つかりません');
     const d = buildBookData(rec, null);
+    d.tomo = tomoForRecord(rec, d);
     const head = ['', ...Array.from({ length: 9 }, (_, i) => i + 1), 'OUT',
       ...Array.from({ length: 9 }, (_, i) => i + 10), 'IN', '計'];
     const headRow = head.map((h, i) =>
