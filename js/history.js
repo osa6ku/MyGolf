@@ -121,6 +121,11 @@ async function renderDetail(root, id) {
     }
     const np = Object.entries(d.nearpin || {})
       .map(([h, n]) => `H${h}: ${n}`).join('、');
+    // トモダチ結果（4人そろい、計算できたラウンドのみ d.tomo が入る）
+    const tomoHtml = (d.tomo && d.tomo.rows && d.tomo.rows.length)
+      ? `<h4>トモダチ結果</h4><div style="overflow-x:auto"><table class="scorecard"><tr>${headRow}</tr>${
+          d.tomo.rows.map(r => scoreRow(r.name, r.pts, d.pars, false)).join('')}</table></div>`
+      : '';
     const memos = (d.holeLines || [])
       .map((l, i) => (l.memo || l.shots) ? `<p>H${i + 1}：${esc(l.shots)}${l.memo ? `（${esc(l.memo)}）` : ''}</p>` : '')
       .filter(Boolean).join('');
@@ -134,6 +139,7 @@ async function renderDetail(root, id) {
         <div style="overflow-x:auto">
           <table class="scorecard"><tr>${headRow}</tr>${rows}</table>
         </div>
+        ${tomoHtml}
         ${memos ? `<h4>ホールメモ</h4>${memos}` : ''}
       </div>`;
     root.querySelector('#hist-back').addEventListener('click', () => renderList(root, _listCache || []));
