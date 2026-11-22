@@ -1,14 +1,14 @@
 // MyGolf 設定・定数
 export const APP_NAME = 'MyGolf';
-export const APP_VERSION = '0.7.26';
+export const APP_VERSION = '0.7.27';
 
 // スコアブック（Drive版HTML）閲覧用 GAS の URL（2026-11-20 v0.7.5）。
 // 本体ファイルは Google Drive に置き、この GAS が一覧と中身を橋渡しする。
 export const SCOREBOOK_GAS_URL = 'https://script.google.com/macros/s/AKfycbzjYZs_zSnAcUvVp0vULOVbQuW6e8yy-Q2iIosggUziZ04wwjTjt549HTsSVzv1IP00Og/exec';
 
 // ラウンド記録スプレッドシートの URL（2026-11-21 v0.7.15 でスペースから移行）。ホームのボタンから開く。
-// 2026-11-22 v0.7.24: Canvasダッシュボード（ゴルフラウンド分析ダッシュボード, gid=199080834）に直接開く。
-export const ROUND_RECORDS_URL = 'https://docs.google.com/spreadsheets/d/1q8FofMWpe4mQd_3lAIghSWmJP_DdBjv0165mH9yhyY4/edit?gid=199080834#gid=199080834';
+// 2026-11-22 v0.7.27: 飛び先をサマリー (gid=0) に戻した。CanvasダッシュボードはMacで見る専用として右端タブに残置。
+export const ROUND_RECORDS_URL = 'https://docs.google.com/spreadsheets/d/1q8FofMWpe4mQd_3lAIghSWmJP_DdBjv0165mH9yhyY4/edit?gid=0#gid=0';
 export const DB_NAME = 'mygolf';
 export const DB_VERSION = 1;
 
