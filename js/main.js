@@ -66,6 +66,17 @@ function openGoogleSheet(rawUrl, options = {}) {
   }
 
   // 5. モバイル閲覧モード（デフォルト：キャンバスエラー回避）
+  if (isAndroid) {
+    // AndroidのPWAから window.open すると埋め込みブラウザ (Custom Tab) で開き、
+    // Canvasタブが「埋め込みサイトでは利用不可」になるため、intent で Chrome 本体を開く。
+    const editPath = `/spreadsheets/d/${sheetId}/edit${gid ? `?gid=${gid}` : ''}`;
+    const fallback = encodeURIComponent(
+      `https://docs.google.com/spreadsheets/d/${sheetId}/htmlview${gidHash}`);
+    window.location.href =
+      `intent://docs.google.com${editPath}#Intent;scheme=https;` +
+      `package=com.android.chrome;S.browser_fallback_url=${fallback};end`;
+    return;
+  }
   const viewPath = mode === 'preview' ? 'preview' : 'htmlview';
   const mobileUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/${viewPath}${gidHash}`;
   window.open(mobileUrl, '_blank', 'noopener,noreferrer');
@@ -364,6 +375,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.26', '2026-11-22', ['「ラウンド記録」ボタン：Androidでは埋め込みブラウザでCanvasが表示できないため、Chrome本体で開くよう変更した']],
   ['0.7.25', '2026-11-22', ['「ラウンド記録」ボタンの開き方をOS別に最適化。スマホでは閲覧用（htmlview）で開き、Canvasダッシュボードが開けない問題を回避した']],
   ['0.7.24', '2026-11-22', ['「ラウンド記録」ボタンのリンク先を、スプレッドシートのCanvasダッシュボード（ゴルフラウンド分析ダッシュボード）に直接開くよう変更した']],
   ['0.7.23', '2026-11-22', ['過去のスコア：トモダチ結果が出ていなかったのを修正。移行ラウンドは保存済みポイントを、MyGolfのラウンドは打順とスコアから再計算して表示する']],
