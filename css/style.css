@@ -1,5 +1,7 @@
 :root { --green: #1a7f37; --border: #d0d7de; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* Android Chrome の文字自動拡大（フォントブースティング）を無効化 */
+html, body { overscroll-behavior: none; overflow-x: hidden; } /* 引っ張り更新・横揺れ防止（PWA共通ベース仕様） */
+p:empty { display: none; } /* 空のメッセージ用 <p> に余白を出さない */
 * { box-sizing: border-box; }
 body { margin: 0; font-family: -apple-system, "Hiragino Sans", sans-serif; background: #f6f8fa; color: #1f2328; padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
 header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; padding-top: calc(10px + env(safe-area-inset-top)); background: var(--green); color: #fff; position: sticky; top: 0; z-index: 10; }
@@ -12,6 +14,11 @@ main { padding: 10px; max-width: 640px; margin: 0 auto; }
 button { font-size: 15px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
 button.primary { background: var(--green); color: #fff; border-color: var(--green); }
 button.big { width: 100%; margin: 4px 0; padding: 12px; }
+.warn-card { background: #fff8c5; border-color: #d4a72c; }
+.home-section { margin: 12px 0 6px; font-size: 13px; color: #57606a; }
+.home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.home-grid button { width: 100%; padding: 14px 6px; font-size: 15px; }
+.home-foot { font-size: 12px; color: #57606a; text-align: center; margin: 2px 0 0; }
 button:disabled { opacity: .4; }
 input[type="text"], input[type="search"], input[type="url"], input[type="date"], select, textarea { font-size: 16px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; width: 100%; margin: 4px 0; }
 .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
@@ -295,6 +302,7 @@ table.scorecard th { background: #dcefe1; }
 /* v0.7.16: body の余白だと上部に白い帯（モヤ）が出るため廃止。代わりにヘッダーと更新バナー自身が
    セーフエリア分を自分の背景色で埋める（ステータスバーは black-translucent で白文字・透過） */
 #update-banner { padding-top: calc(8px + env(safe-area-inset-top)); }
+#update-banner + header { padding-top: 10px; } /* バナー表示時はヘッダー側のセーフエリア分を二重に足さない */
 
 /* v0.7.5: スコアブック（Drive版HTML）の一覧と全画面ビューア */
 .book-item { display: block; width: 100%; text-align: left; background: #fff; border: 1px solid #d8e4da; border-radius: 10px; box-shadow: 0 1px 4px rgba(31,35,40,.13); padding: 12px; margin-bottom: 10px; cursor: pointer; }

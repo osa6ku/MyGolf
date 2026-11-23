@@ -104,13 +104,22 @@ function show(screen) {
 
 async function renderHome() {
   const s = getState();
-  const lastLocal = await getMeta('lastLocalSave', '');
-  const lastDraft = await getMeta('lastDraftSave', '');
-  const pending = await pendingList();
-  const mc = await masterCount();
+  const [lastLocal, lastDraft, pending, mc, artifactJob, pdfUrlInit] = await Promise.all([
+    getMeta('lastLocalSave', ''),
+    getMeta('lastDraftSave', ''),
+    pendingList(),
+    masterCount(),
+    getMeta('pendingArtifact', null),
+    getMeta('scorebookPdfUrl', ''),
+  ]);
+  let pdfUrl = pdfUrlInit;
   const sum = s ? summarize(s) : null;
-  const artifactJob = await getMeta('pendingArtifact', null);
   $('#home-body').innerHTML = `
+    ${pending.length ? `<div class="card warn-card">
+      <h3>⚠️ 確定保存の保留が ${pending.length} 件あります</h3>
+      <p>電波の良い場所で送信してください。</p>
+      <button type="button" class="primary" id="flush-btn">保留を送信する</button>
+    </div>` : ''}
     ${sum ? `<div class="card resume">
       <h3>進行中のラウンド</h3>
       <p>${esc(sum.course_name)}（${esc(sum.date)}）/ 現在 ${sum.currentHole}H / 入力済み ${sum.playedHoles}H / スコア計 ${sum.scoreSoFar}</p>
@@ -126,22 +135,17 @@ async function renderHome() {
     </div>` : ''}
     <div class="card">
       <button type="button" class="primary big" id="new-btn">新規ラウンド</button>
-      <button type="button" class="big" id="restore-btn">復元</button>
-      <button type="button" class="big" id="books-btn">スコアブック</button>
-      <button type="button" class="big" id="book-pdf-btn">スコアブックPDF</button>
-      <button type="button" class="big" id="history-btn">過去のスコア</button>
-      <button type="button" class="big" id="records-btn">ラウンド記録</button>
+      <h3 class="home-section">記録・振り返り</h3>
+      <div class="home-grid">
+        <button type="button" id="books-btn">📖 スコアブック</button>
+        <button type="button" id="book-pdf-btn">📄 累積PDF</button>
+        <button type="button" id="history-btn">🗂 過去のスコア</button>
+        <button type="button" id="records-btn">📊 ラウンド記録</button>
+      </div>
       <p id="book-pdf-msg"></p>
       <div id="book-pdf-links"></div>
     </div>
-    <div class="card status">
-      <h3>保存ステータス</h3>
-      <p>最終ローカル保存：${esc(lastLocal || '—')}<br>
-      最終クラウド下書き：${esc(lastDraft || '—')}<br>
-      確定保存の保留：${pending.length} 件<br>
-      コースマスタ：${mc} 件</p>
-      ${pending.length ? '<button type="button" id="flush-btn">保留を送信する</button>' : ''}
-    </div>`;
+    <p class="home-foot">ローカル保存: ${esc(lastLocal || '—')} / クラウド: ${esc(lastDraft || '—')} / マスタ: ${mc} 件</p>`;
   const resume = $('#resume-btn');
   if (resume) resume.addEventListener('click', () => show('hole'));
   const discard = $('#discard-btn');
@@ -172,21 +176,18 @@ async function renderHome() {
     }
   });
   $('#new-btn').addEventListener('click', async () => { await renderSetup($('#screen-setup')); show('setup'); });
-  $('#restore-btn').addEventListener('click', async () => { await renderRestore($('#screen-restore')); show('restore'); });
   $('#books-btn').addEventListener('click', () => show('books'));
   $('#history-btn').addEventListener('click', () => show('history'));
   $('#records-btn').addEventListener('click', () => openGoogleSheet(ROUND_RECORDS_URL));
   const bookPdfBtn = $('#book-pdf-btn');
-  const showPdfLink = url => {
-    if (bookPdfBtn) bookPdfBtn.style.display = 'none';
-    const linksEl = $('#book-pdf-links');
-    if (linksEl) linksEl.innerHTML = `<p><a class="btn-link" href="${esc(url)}" target="_blank" rel="noopener">📖 スコアブックPDFを開く</a></p>`;
-  };
-  const cachedPdfUrl = await getMeta('scorebookPdfUrl', '');
-  if (cachedPdfUrl) showPdfLink(cachedPdfUrl);
   if (bookPdfBtn) bookPdfBtn.addEventListener('click', async () => {
+    if (bookPdfBtn.disabled) return;
     const msg = $('#book-pdf-msg');
-    if (msg) msg.textContent = 'スコアブックを探しています…';
+    if (pdfUrl) { window.open(pdfUrl, '_blank', 'noopener'); return; }
+    bookPdfBtn.disabled = true;
+    if (msg) msg.textContent = '累積PDFを探しています…';
+    // 非同期取得後の window.open はポップアップブロックされやすいため、先に空タブを開いて遷移させる
+    const win = window.open('', '_blank');
     let url = '';
     try {
       const res = await fetchScoreBook();
@@ -195,11 +196,25 @@ async function renderHome() {
         await setMeta('scorebookPdfUrl', url);
       }
     } catch (e) { /* 取得できなければ未作成として扱う */ }
-    if (msg) msg.textContent = url ? '' : 'スコアブックPDFがまだありません。';
-    if (url) showPdfLink(url);
+    if (url) {
+      pdfUrl = url;
+      if (msg) msg.textContent = '';
+      if (win) win.location.href = url;
+      else {
+        const linksEl = $('#book-pdf-links');
+        if (linksEl) linksEl.innerHTML = `<p><a class="btn-link" href="${esc(url)}" target="_blank" rel="noopener">📄 累積PDFを開く</a></p>`;
+      }
+      bookPdfBtn.disabled = false;
+    } else {
+      if (win) win.close();
+      if (msg) msg.textContent = '累積PDFがまだありません。';
+      bookPdfBtn.disabled = false;
+    }
   });
   const flush = $('#flush-btn');
   if (flush) flush.addEventListener('click', async () => {
+    if (flush.disabled) return;
+    flush.disabled = true;
     const results = await flushPending();
     alert(results.map(r => `${r.round_id}: ${r.ok ? (r.duplicate ? '送信済み（重複なし）' : '送信完了') : '失敗 ' + (r.error || '')}`).join('\n') || '保留なし');
     renderHome();
@@ -381,6 +396,7 @@ async function renderSettings() {
 
 // 変更履歴（バージョン表示ボタンのモーダル用。新しい順）
 const CHANGELOG = [
+  ['0.7.29', '2026-11-23', ['ホーム画面を刷新：復元ボタン（タブバーと重複）を削除し、新規ラウンドの下に「記録・振り返り」4ボタンを2×2グリッドで配置。「スコアブックPDF」は「累積PDF」に改称し、常に同じボタンから開くよう統一した。保存ステータスは最下部の1行表示に圧縮し、確定保存の保留があるときだけ上部に警告カードを出すようにした']],
   ['0.7.28', '2026-11-22', ['「ラウンド記録」ボタン：iPhoneでも編集画面で開くよう変更した。閲覧用表示（htmlview）は読み取り専用で、フィルターやタブ移動が使えないため']],
   ['0.7.27', '2026-11-22', ['「ラウンド記録」ボタンの飛び先をサマリーに戻した。CanvasダッシュボードはMacで見る専用にした']],
   ['0.7.26', '2026-11-22', ['「ラウンド記録」ボタン：Androidでは埋め込みブラウザでCanvasが表示できないため、Chrome本体で開くよう変更した']],
