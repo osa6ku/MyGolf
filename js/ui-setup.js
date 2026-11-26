@@ -303,6 +303,10 @@ function renderOrder(root) {
 }
 
 async function selectCourse(root, courseId, preset) {
+  // コース選択が確定したら検索欄のキーボードを明示的に閉じる。Android Chrome（PWA）で
+  // キーボードを閉じる際の表示領域の復帰に失敗し、スクロール・入力ができなくなる事象への
+  // 対策（2026-11-26 Pixel のシミュレーション入力時に発生。選択自体は正常完了していた）
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   const { allCourses } = await import('./master.js');
   const all = await allCourses();
   selectedCourse = all.find(c => String(c.course_id) === String(courseId));
