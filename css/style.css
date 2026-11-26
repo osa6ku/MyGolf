@@ -1,6 +1,6 @@
 :root { --green: #1a7f37; --border: #d0d7de; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* Android Chrome の文字自動拡大（フォントブースティング）を無効化 */
-html, body { overscroll-behavior: none; overflow-x: hidden; } /* 引っ張り更新・横揺れ防止（PWA共通ベース仕様） */
+html, body { overscroll-behavior: none; overflow-x: hidden; overflow-x: clip; } /* 引っ張り更新・横揺れ防止（PWA共通ベース仕様）。overflow-x: hidden は Android Chrome で html/body をスクロールコンテナ化し縦スクロール全体が効かなくなる事象があるため、対応ブラウザではスクロールコンテナを作らない clip を優先する（hidden は旧ブラウザ向けフォールバック。2026-11-26 v0.7.31） */
 p:empty { display: none; } /* 空のメッセージ用 <p> に余白を出さない */
 * { box-sizing: border-box; }
 body { margin: 0; font-family: -apple-system, "Hiragino Sans", sans-serif; background: #f6f8fa; color: #1f2328; padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
